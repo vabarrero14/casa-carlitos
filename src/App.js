@@ -3,6 +3,7 @@ import './App.css';
 import Products from './pages/Products';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
+import Clients from './pages/Clients'; // ← Agregar esta importación
 
 function App() {
   const [currentSection, setCurrentSection] = useState('products');
@@ -15,6 +16,8 @@ function App() {
         return <Sales />;
       case 'reports':
         return <Reports />;
+      case 'clients': // ← Agregar este caso
+        return <Clients />;
       default:
         return <Products />;
     }
@@ -46,6 +49,12 @@ function App() {
           onClick={() => setCurrentSection('sales')}
         >
           🧾 Ventas
+        </button>
+        <button 
+          className={`nav-btn ${currentSection === 'clients' ? 'active' : ''}`}
+          onClick={() => setCurrentSection('clients')}
+        >
+          👥 Clientes
         </button>
         <button 
           className={`nav-btn ${currentSection === 'reports' ? 'active' : ''}`}
