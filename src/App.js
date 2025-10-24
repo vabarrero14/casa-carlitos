@@ -1,23 +1,59 @@
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import './App.css';
+import Products from './pages/Products';
+import Sales from './pages/Sales';
+import Reports from './pages/Reports';
 
 function App() {
+  const [currentSection, setCurrentSection] = useState('products');
+
+  const renderSection = () => {
+    switch(currentSection) {
+      case 'products':
+        return <Products />;
+      case 'sales':
+        return <Sales />;
+      case 'reports':
+        return <Reports />;
+      default:
+        return <Products />;
+    }
+  };
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+      {/* Header simple */}
+      <header className="app-header">
+        <h1>🏠 Casa Carlitos</h1>
+        <p>Ferretería y Pinturería</p>
       </header>
+
+      {/* Contenido principal */}
+      <main className="main-content">
+        {renderSection()}
+      </main>
+
+      {/* Navegación inferior - SUPER SIMPLE */}
+      <nav className="bottom-nav">
+        <button 
+          className={`nav-btn ${currentSection === 'products' ? 'active' : ''}`}
+          onClick={() => setCurrentSection('products')}
+        >
+          📦 Productos
+        </button>
+        <button 
+          className={`nav-btn ${currentSection === 'sales' ? 'active' : ''}`}
+          onClick={() => setCurrentSection('sales')}
+        >
+          🧾 Ventas
+        </button>
+        <button 
+          className={`nav-btn ${currentSection === 'reports' ? 'active' : ''}`}
+          onClick={() => setCurrentSection('reports')}
+        >
+          📊 Reportes
+        </button>
+      </nav>
     </div>
   );
 }

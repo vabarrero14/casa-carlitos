@@ -1,0 +1,107 @@
+/* Agrega esto al final de tu Products.css existente */
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.filters-section {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.search-box {
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  padding: 15px;
+  font-size: 1.1em;
+  border: 2px solid #bdc3c7;
+  border-radius: 8px;
+  background: white;
+}
+
+.search-input:focus {
+  border-color: #3498db;
+  outline: none;
+}
+
+.category-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-filters label {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.category-select {
+  padding: 10px;
+  font-size: 1em;
+  border: 2px solid #bdc3c7;
+  border-radius: 6px;
+  background: white;
+}
+
+.product-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.btn-edit {
+  background: #f39c12 !important;
+}
+
+.btn-stock {
+  background: #3498db !important;
+}
+
+.btn-delete {
+  background: #e74c3c !important;
+}
+
+.btn-small {
+  padding: 8px 12px;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9em;
+  cursor: pointer;
+  flex: 1;
+  min-width: 70px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .list-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .category-filters {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .product-actions {
+    flex-direction: column;
+  }
+  
+  .btn-small {
+    width: 100%;
+  }
+}
