@@ -5,23 +5,36 @@ import {
   addDoc, 
   getDocs,
   updateDoc,
-  doc
+  doc,
+  query,
+  where 
 } from 'firebase/firestore';
 import './Sales.css';
 
 const Sales = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [filteredClients, setFilteredClients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
   const [saleInProgress, setSaleInProgress] = useState(false);
-  const [customerName, setCustomerName] = useState('');
+  const [customer, setCustomer] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [salesHistory, setSalesHistory] = useState([]);
+  const [showClientSearch, setShowClientSearch] = useState(false);
+  const [showQuickClientForm, setShowQuickClientForm] = useState(false);
+  const [newQuickClient, setNewQuickClient] = useState({
+    name: '',
+    document: '',
+    phone: ''
+  });
 
-  // Cargar productos al iniciar el componente
+  // Cargar productos y clientes al iniciar
   useEffect(() => {
     loadProducts();
+    loadClients();
   }, []);
 
   // Cargar productos
@@ -40,6 +53,21 @@ const Sales = () => {
     }
   };
 
+  // Cargar clientes
+  const loadClients = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'clients'));
+      const clientsList = [];
+      querySnapshot.forEach((doc) => {
+        clientsList.push({ id: doc.id, ...doc.data() });
+      });
+      setClients(clientsList);
+      setFilteredClients(clientsList);
+    } catch (error) {
+      console.error('Error cargando clientes:', error);
+    }
+  };
+
   // Cargar historial de ventas
   const loadSalesHistory = async () => {
     try {
@@ -48,7 +76,6 @@ const Sales = () => {
       querySnapshot.forEach((doc) => {
         salesList.push({ id: doc.id, ...doc.data() });
       });
-      // Ordenar por fecha más reciente
       salesList.sort((a, b) => b.createdAt?.toDate() - a.createdAt?.toDate());
       setSalesHistory(salesList);
     } catch (error) {
@@ -69,12 +96,24 @@ const Sales = () => {
     }
   }, [searchTerm, products]);
 
+  // Filtrar clientes para búsqueda
+  useEffect(() => {
+    if (clientSearchTerm) {
+      const filtered = clients.filter(client =>
+        client.name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+        (client.document && client.document.includes(clientSearchTerm))
+      );
+      setFilteredClients(filtered);
+    } else {
+      setFilteredClients(clients);
+    }
+  }, [clientSearchTerm, clients]);
+
   // Agregar producto al carrito
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.id === product.id);
     
     if (existingItem) {
-      // Si ya está en el carrito, aumentar cantidad
       if (existingItem.quantity < product.stock) {
         setCart(cart.map(item =>
           item.id === product.id 
@@ -85,7 +124,6 @@ const Sales = () => {
         alert('No hay suficiente stock disponible');
       }
     } else {
-      // Si no está en el carrito, agregarlo
       if (product.stock > 0) {
         setCart([...cart, { ...product, quantity: 1 }]);
       } else {
@@ -123,6 +161,33 @@ const Sales = () => {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal;
 
+  // Crear cliente rápido
+  const handleCreateQuickClient = async (e) => {
+    e.preventDefault();
+    try {
+      const clientData = {
+        name: newQuickClient.name,
+        document: newQuickClient.document,
+        phone: newQuickClient.phone,
+        createdAt: new Date()
+      };
+
+      const docRef = await addDoc(collection(db, 'clients'), clientData);
+      
+      // Seleccionar el nuevo cliente automáticamente
+      setCustomer({ id: docRef.id, ...clientData });
+      setShowQuickClientForm(false);
+      setShowClientSearch(false);
+      setNewQuickClient({ name: '', document: '', phone: '' });
+      loadClients(); // Recargar lista de clientes
+      
+      alert('✅ Cliente creado y seleccionado');
+    } catch (error) {
+      console.error('Error creando cliente:', error);
+      alert('Error al crear cliente');
+    }
+  };
+
   // Finalizar venta
   const completeSale = async () => {
     if (cart.length === 0) {
@@ -134,7 +199,12 @@ const Sales = () => {
       // 1. Guardar la venta en Firebase
       const saleData = {
         items: cart,
-        customerName: customerName || 'Cliente general',
+        customer: customer ? {
+          id: customer.id,
+          name: customer.name,
+          document: customer.document
+        } : null,
+        customerName: customer ? customer.name : 'Cliente general',
         subtotal,
         total,
         createdAt: new Date(),
@@ -154,13 +224,15 @@ const Sales = () => {
       await Promise.all(updatePromises);
 
       // 3. Mostrar resumen y limpiar
-      alert(`✅ Venta completada exitosamente!\nTotal: $${total}`);
+      const customerName = customer ? customer.name : 'Cliente general';
+      alert(`✅ Venta completada exitosamente!\nCliente: ${customerName}\nTotal: $${total}`);
       
       setCart([]);
-      setCustomerName('');
+      setCustomer(null);
       setSaleInProgress(false);
-      loadProducts(); // Recargar productos con nuevo stock
-      loadSalesHistory(); // Actualizar historial
+      setShowClientSearch(false);
+      loadProducts();
+      loadSalesHistory();
 
     } catch (error) {
       console.error('Error completando venta:', error);
@@ -172,9 +244,22 @@ const Sales = () => {
   const startNewSale = () => {
     setSaleInProgress(true);
     setCart([]);
-    setCustomerName('');
+    setCustomer(null);
     setSearchTerm('');
-    loadProducts(); // ← ESTA LÍNEA FALTABA
+    setClientSearchTerm('');
+    setShowClientSearch(false);
+  };
+
+  // Seleccionar cliente
+  const selectCustomer = (client) => {
+    setCustomer(client);
+    setShowClientSearch(false);
+    setClientSearchTerm('');
+  };
+
+  // Quitar cliente seleccionado
+  const removeCustomer = () => {
+    setCustomer(null);
   };
 
   // Formatear fecha
@@ -213,7 +298,6 @@ const Sales = () => {
         
         <button className="big-btn">🔍 Buscar Venta</button>
         <button className="big-btn">📄 Facturas del Día</button>
-        <button className="big-btn">👥 Clientes Frecuentes</button>
       </div>
 
       {/* Proceso de venta */}
@@ -230,15 +314,134 @@ const Sales = () => {
           </div>
 
           {/* Información del cliente */}
-          <div className="customer-info">
-            <input
-              type="text"
-              placeholder="👤 Nombre del cliente (opcional)"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="customer-input"
-            />
+          <div className="customer-section">
+            <div className="customer-display">
+              {customer ? (
+                <div className="selected-customer">
+                  <span>👤 Cliente: <strong>{customer.name}</strong> ({customer.document})</span>
+                  <button 
+                    onClick={removeCustomer}
+                    className="btn-small btn-remove"
+                  >
+                    ❌
+                  </button>
+                </div>
+              ) : (
+                <div className="no-customer">
+                  <span>👤 Cliente general</span>
+                  <button 
+                    onClick={() => setShowClientSearch(true)}
+                    className="btn-small btn-primary"
+                  >
+                    🔍 Buscar Cliente
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Búsqueda de clientes */}
+          {showClientSearch && (
+            <div className="client-search-overlay">
+              <div className="client-search-container">
+                <div className="client-search-header">
+                  <h4>🔍 Buscar Cliente</h4>
+                  <button 
+                    onClick={() => setShowClientSearch(false)}
+                    className="btn-secondary"
+                  >
+                    ❌ Cerrar
+                  </button>
+                </div>
+
+                <div className="client-search-actions">
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o documento..."
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    className="search-input"
+                  />
+                  <button 
+                    onClick={() => setShowQuickClientForm(true)}
+                    className="btn-primary"
+                  >
+                    ➕ Cliente Nuevo
+                  </button>
+                </div>
+
+                <div className="clients-results">
+                  {filteredClients.map((client) => (
+                    <div 
+                      key={client.id} 
+                      className="client-result-item"
+                      onClick={() => selectCustomer(client)}
+                    >
+                      <div className="client-info">
+                        <strong>{client.name}</strong>
+                        <span>📄 {client.document}</span>
+                        {client.phone && <span>📞 {client.phone}</span>}
+                      </div>
+                      <button className="btn-select">✅ Seleccionar</button>
+                    </div>
+                  ))}
+                  
+                  {filteredClients.length === 0 && (
+                    <p className="no-results">No se encontraron clientes</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Formulario rápido de cliente */}
+          {showQuickClientForm && (
+            <div className="form-overlay">
+              <div className="form-container">
+                <h4>➕ Crear Cliente Rápido</h4>
+                <form onSubmit={handleCreateQuickClient}>
+                  <div className="form-group">
+                    <label>Nombre:</label>
+                    <input
+                      type="text"
+                      value={newQuickClient.name}
+                      onChange={(e) => setNewQuickClient({...newQuickClient, name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Documento:</label>
+                    <input
+                      type="text"
+                      value={newQuickClient.document}
+                      onChange={(e) => setNewQuickClient({...newQuickClient, document: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Teléfono:</label>
+                    <input
+                      type="tel"
+                      value={newQuickClient.phone}
+                      onChange={(e) => setNewQuickClient({...newQuickClient, phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-buttons">
+                    <button type="submit" className="btn-primary">
+                      ✅ Crear y Seleccionar
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn-secondary"
+                      onClick={() => setShowQuickClientForm(false)}
+                    >
+                      ❌ Cancelar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           <div className="sale-layout">
             {/* Columna izquierda - Búsqueda y productos */}

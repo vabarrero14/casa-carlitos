@@ -1,9 +1,10 @@
-/* Sales.css */
+/* Sales.css - Versión actualizada con módulo de clientes */
 .sale-process {
     margin-top: 30px;
     background: #f8f9fa;
     padding: 20px;
     border-radius: 15px;
+    position: relative;
   }
   
   .sale-header {
@@ -18,13 +19,215 @@
     margin: 0;
   }
   
-  .customer-info {
+  /* Sección de cliente */
+  .customer-section {
+    margin-bottom: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  .customer-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .selected-customer {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #e8f5e8;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border-left: 4px solid #27ae60;
+  }
+  
+  .selected-customer span {
+    font-size: 1.1em;
+    color: #2c3e50;
+  }
+  
+  .no-customer {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .no-customer span {
+    color: #7f8c8d;
+    font-style: italic;
+  }
+  
+  .btn-remove {
+    background: #e74c3c !important;
+    padding: 5px 8px;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.8em;
+  }
+  
+  /* Búsqueda de clientes */
+  .client-search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .client-search-container {
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  
+  .client-search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #ecf0f1;
+  }
+  
+  .client-search-header h4 {
+    color: #2c3e50;
+    margin: 0;
+  }
+  
+  .client-search-actions {
+    display: flex;
+    gap: 15px;
     margin-bottom: 20px;
   }
   
-  .customer-input {
+  .client-search-actions .search-input {
+    flex: 2;
+  }
+  
+  .client-search-actions .btn-primary {
+    flex: 1;
+    white-space: nowrap;
+  }
+  
+  .clients-results {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ecf0f1;
+    border-radius: 8px;
+  }
+  
+  .client-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #ecf0f1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .client-result-item:hover {
+    background: #f8f9fa;
+  }
+  
+  .client-result-item:last-child {
+    border-bottom: none;
+  }
+  
+  .client-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 2;
+  }
+  
+  .client-info strong {
+    color: #2c3e50;
+    font-size: 1.1em;
+  }
+  
+  .client-info span {
+    color: #7f8c8d;
+    font-size: 0.9em;
+  }
+  
+  .btn-select {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    flex: 0.5;
+  }
+  
+  .no-results {
+    text-align: center;
+    color: #7f8c8d;
+    padding: 30px;
+    font-style: italic;
+  }
+  
+  /* Formulario rápido de cliente */
+  .form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+  }
+  
+  .form-container {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .form-container h4 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.3em;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 1.1em;
+  }
+  
+  .form-group input {
     width: 100%;
-    max-width: 400px;
     padding: 15px;
     font-size: 1.1em;
     border: 2px solid #bdc3c7;
@@ -32,11 +235,42 @@
     background: white;
   }
   
-  .customer-input:focus {
+  .form-group input:focus {
     border-color: #3498db;
     outline: none;
   }
   
+  .form-buttons {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+  }
+  
+  .btn-primary {
+    flex: 2;
+    padding: 15px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  
+  .btn-secondary {
+    flex: 1;
+    padding: 15px;
+    background: #95a5a6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  
+  /* Layout de venta */
   .sale-layout {
     display: grid;
     grid-template-columns: 2fr 1fr;
@@ -115,6 +349,7 @@
     font-size: 0.8em;
   }
   
+  /* Carrito */
   .cart-column {
     background: white;
     padding: 20px;
@@ -324,6 +559,18 @@
     padding: 40px 0;
   }
   
+  /* Botones pequeños */
+  .btn-small {
+    padding: 8px 12px;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9em;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  
   /* Responsive */
   @media (max-width: 768px) {
     .sale-layout {
@@ -336,10 +583,24 @@
       align-items: flex-start;
     }
     
-    .sale-header-info {
+    .customer-display {
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    
+    .client-search-actions {
+      flex-direction: column;
+    }
+    
+    .client-result-item {
       flex-direction: column;
       align-items: flex-start;
-      gap: 5px;
+      gap: 10px;
+    }
+    
+    .btn-select {
+      width: 100%;
     }
     
     .history-container {
@@ -347,7 +608,36 @@
       padding: 20px;
     }
     
+    .sale-header-info {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+    }
+    
     .products-grid {
       grid-template-columns: 1fr;
+    }
+    
+    .form-buttons {
+      flex-direction: column;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .sale-process {
+      padding: 15px;
+    }
+    
+    .products-column,
+    .cart-column {
+      padding: 15px;
+    }
+    
+    .client-search-container {
+      padding: 20px;
+    }
+    
+    .form-container {
+      padding: 20px;
     }
   }
