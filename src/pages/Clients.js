@@ -8,18 +8,20 @@ import {
   doc, 
   deleteDoc 
 } from 'firebase/firestore';
+import Notification from '../components/Notification';
 import './Clients.css';
 
 const Clients = () => {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showClientList, setShowClientList] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
+  const [activeSection, setActiveSection] = useState('addClient');
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingClient, setEditingClient] = useState(null);
+  const [loading, setLoading] = useState(false);
   
-  // Estado para nuevo cliente
+  // Estados para formularios
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
   const [newClient, setNewClient] = useState({
     name: '',
     document: '',
@@ -28,8 +30,23 @@ const Clients = () => {
     address: ''
   });
 
-  // Cargar clientes desde Firebase
+  // Estado para notificaciones
+  const [notification, setNotification] = useState(null);
+
+  // Cargar clientes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  // Función para mostrar notificación
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
+  // Cargar clientes
   const loadClients = async () => {
+    setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'clients'));
       const clientsList = [];
@@ -40,8 +57,9 @@ const Clients = () => {
       setFilteredClients(clientsList);
     } catch (error) {
       console.error('Error cargando clientes:', error);
-      alert('Error al cargar clientes');
+      showNotification('❌ Error al cargar clientes', 'error');
     }
+    setLoading(false);
   };
 
   // Filtrar clientes para búsqueda
@@ -60,6 +78,8 @@ const Clients = () => {
   // Agregar nuevo cliente
   const handleAddClient = async (e) => {
     e.preventDefault();
+    showNotification('Agregando cliente...', 'loading');
+    
     try {
       await addDoc(collection(db, 'clients'), {
         name: newClient.name,
@@ -70,19 +90,21 @@ const Clients = () => {
         createdAt: new Date()
       });
       
-      alert('✅ Cliente agregado correctamente');
+      showNotification('✅ Cliente agregado correctamente', 'success');
       setNewClient({ name: '', document: '', phone: '', email: '', address: '' });
       setShowAddForm(false);
       loadClients();
     } catch (error) {
       console.error('Error agregando cliente:', error);
-      alert('Error al agregar cliente');
+      showNotification('❌ Error al agregar cliente', 'error');
     }
   };
 
   // Editar cliente
   const handleEditClient = async (e) => {
     e.preventDefault();
+    showNotification('Actualizando cliente...', 'loading');
+    
     try {
       await updateDoc(doc(db, 'clients', editingClient.id), {
         name: editingClient.name,
@@ -92,26 +114,28 @@ const Clients = () => {
         address: editingClient.address
       });
       
-      alert('✅ Cliente actualizado correctamente');
+      showNotification('✅ Cliente actualizado correctamente', 'success');
       setShowEditForm(false);
       setEditingClient(null);
       loadClients();
     } catch (error) {
       console.error('Error editando cliente:', error);
-      alert('Error al editar cliente');
+      showNotification('❌ Error al editar cliente', 'error');
     }
   };
 
   // Eliminar cliente
   const handleDeleteClient = async (clientId, clientName) => {
     if (window.confirm(`¿Estás seguro de que quieres eliminar a "${clientName}"?`)) {
+      showNotification('Eliminando cliente...', 'loading');
+      
       try {
         await deleteDoc(doc(db, 'clients', clientId));
-        alert('✅ Cliente eliminado correctamente');
+        showNotification('✅ Cliente eliminado correctamente', 'success');
         loadClients();
       } catch (error) {
         console.error('Error eliminando cliente:', error);
-        alert('Error al eliminar cliente');
+        showNotification('❌ Error al eliminar cliente', 'error');
       }
     }
   };
@@ -122,38 +146,229 @@ const Clients = () => {
     setShowEditForm(true);
   };
 
+  // Estadísticas
+  const totalClients = clients.length;
+  const clientsWithPhone = clients.filter(c => c.phone).length;
+  const clientsWithEmail = clients.filter(c => c.email).length;
+
   return (
     <div className="page">
       <h2>👥 Gestión de Clientes</h2>
-      
-      {/* Botones principales */}
-      <div className="action-buttons">
+
+      {/* Navegación tipo Reportes */}
+      <div className="reports-nav">
         <button 
-          className="big-btn" 
-          onClick={() => {
-            setShowAddForm(true);
-            setShowClientList(false);
-          }}
+          className={`report-btn ${activeSection === 'addClient' ? 'active' : ''}`}
+          onClick={() => setActiveSection('addClient')}
         >
-          ➕ Agregar Cliente Nuevo
+          ➕ Agregar Cliente
         </button>
-        
         <button 
-          className="big-btn" 
-          onClick={() => {
-            setShowClientList(true);
-            setShowAddForm(false);
-            loadClients();
-          }}
+          className={`report-btn ${activeSection === 'viewClients' ? 'active' : ''}`}
+          onClick={() => setActiveSection('viewClients')}
         >
-          📋 Ver Todos los Clientes
+          📋 Ver Clientes
         </button>
-        
-        <button className="big-btn">📊 Historial de Compras</button>
-        <button className="big-btn">⭐ Clientes Frecuentes</button>
+        <button 
+          className={`report-btn ${activeSection === 'clientStats' ? 'active' : ''}`}
+          onClick={() => setActiveSection('clientStats')}
+        >
+          📊 Estadísticas
+        </button>
       </div>
 
-      {/* Formulario para agregar cliente */}
+      {/* Contenido principal */}
+      <div className="reports-content">
+        {loading ? (
+          <div className="loading">
+            <div className="loading-spinner"></div>
+            Cargando clientes...
+          </div>
+        ) : (
+          <>
+            {/* Sección: Agregar Cliente */}
+            {activeSection === 'addClient' && (
+              <div className="report-section">
+                <h3>➕ Agregar Nuevo Cliente</h3>
+                
+                <div className="summary-cards">
+                  <div className="summary-card total-clients">
+                    <h4>Total Clientes</h4>
+                    <p className="amount">{totalClients}</p>
+                  </div>
+                  <div className="summary-card clients-phone">
+                    <h4>Con Teléfono</h4>
+                    <p className="amount">{clientsWithPhone}</p>
+                  </div>
+                  <div className="summary-card clients-email">
+                    <h4>Con Email</h4>
+                    <p className="amount">{clientsWithEmail}</p>
+                  </div>
+                </div>
+
+                {/* Solo el botón para abrir modal */}
+                <div className="add-client-button-container">
+                  <button 
+                    onClick={() => setShowAddForm(true)}
+                    className="btn-primary big-add-btn"
+                  >
+                    ➕ Agregar Nuevo Cliente
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sección: Ver Clientes */}
+            {activeSection === 'viewClients' && (
+              <div className="report-section">
+                <h3>📋 Lista de Clientes ({filteredClients.length})</h3>
+
+                {/* Búsqueda */}
+                <div className="search-section">
+                  <input
+                    type="text"
+                    placeholder="🔍 Buscar por nombre o documento..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-input"
+                  />
+                </div>
+
+                {/* Lista de clientes */}
+                {filteredClients.length > 0 ? (
+                  <div className="table-container">
+                    <table className="clients-table">
+                      <thead>
+                        <tr>
+                          <th>Cliente</th>
+                          <th>Documento</th>
+                          <th>Contacto</th>
+                          <th>Dirección</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredClients.map((client) => (
+                          <tr key={client.id}>
+                            <td>
+                              <strong>{client.name}</strong>
+                            </td>
+                            <td>{client.document}</td>
+                            <td>
+                              {client.phone && <div>📞 {client.phone}</div>}
+                              {client.email && <div>📧 {client.email}</div>}
+                              {!client.phone && !client.email && <span className="no-contact">Sin contacto</span>}
+                            </td>
+                            <td>
+                              {client.address ? (
+                                <span className="address-truncate" title={client.address}>
+                                  {client.address.length > 30 
+                                    ? client.address.substring(0, 30) + '...' 
+                                    : client.address
+                                  }
+                                </span>
+                              ) : (
+                                <span className="no-address">Sin dirección</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="action-buttons-small">
+                                <button 
+                                  onClick={() => openEditForm(client)}
+                                  className="btn-small btn-edit"
+                                >
+                                  ✏️
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteClient(client.id, client.name)}
+                                  className="btn-small btn-delete"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="no-data">
+                    {clients.length === 0 
+                      ? 'No hay clientes registrados todavía.' 
+                      : 'No se encontraron clientes con la búsqueda.'
+                    }
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Sección: Estadísticas */}
+            {activeSection === 'clientStats' && (
+              <div className="report-section">
+                <h3>📊 Estadísticas de Clientes</h3>
+                
+                <div className="summary-cards">
+                  <div className="summary-card total-clients">
+                    <h4>Total de Clientes</h4>
+                    <p className="amount">{totalClients}</p>
+                    <p className="subtext">Registrados en el sistema</p>
+                  </div>
+                  <div className="summary-card clients-phone">
+                    <h4>Con Teléfono</h4>
+                    <p className="amount">{clientsWithPhone}</p>
+                    <p className="subtext">{((clientsWithPhone / totalClients) * 100 || 0).toFixed(1)}%</p>
+                  </div>
+                  <div className="summary-card clients-email">
+                    <h4>Con Email</h4>
+                    <p className="amount">{clientsWithEmail}</p>
+                    <p className="subtext">{((clientsWithEmail / totalClients) * 100 || 0).toFixed(1)}%</p>
+                  </div>
+                  <div className="summary-card clients-complete">
+                    <h4>Datos Completos</h4>
+                    <p className="amount">
+                      {clients.filter(c => c.phone && c.email && c.address).length}
+                    </p>
+                    <p className="subtext">Con teléfono, email y dirección</p>
+                  </div>
+                </div>
+
+                <div className="clients-breakdown">
+                  <h4>Desglose de Clientes</h4>
+                  <div className="breakdown-grid">
+                    <div className="breakdown-item">
+                      <span className="breakdown-label">Solo teléfono:</span>
+                      <span className="breakdown-value">
+                        {clients.filter(c => c.phone && !c.email).length}
+                      </span>
+                    </div>
+                    <div className="breakdown-item">
+                      <span className="breakdown-label">Solo email:</span>
+                      <span className="breakdown-value">
+                        {clients.filter(c => !c.phone && c.email).length}
+                      </span>
+                    </div>
+                    <div className="breakdown-item">
+                      <span className="breakdown-label">Sin contacto:</span>
+                      <span className="breakdown-value">
+                        {clients.filter(c => !c.phone && !c.email).length}
+                      </span>
+                    </div>
+                    <div className="breakdown-item">
+                      <span className="breakdown-label">Con dirección:</span>
+                      <span className="breakdown-value">
+                        {clients.filter(c => c.address).length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Modal para Agregar Cliente */}
       {showAddForm && (
         <div className="form-overlay">
           <div className="form-container">
@@ -218,7 +433,10 @@ const Clients = () => {
                 <button 
                   type="button" 
                   className="btn-secondary"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewClient({ name: '', document: '', phone: '', email: '', address: '' });
+                  }}
                 >
                   ❌ Cancelar
                 </button>
@@ -228,7 +446,7 @@ const Clients = () => {
         </div>
       )}
 
-      {/* Formulario para editar cliente */}
+      {/* Modal para Editar Cliente */}
       {showEditForm && editingClient && (
         <div className="form-overlay">
           <div className="form-container">
@@ -301,66 +519,14 @@ const Clients = () => {
         </div>
       )}
 
-      {/* Lista de clientes */}
-      {showClientList && (
-        <div className="clients-list">
-          <div className="list-header">
-            <h3>Lista de Clientes ({filteredClients.length})</h3>
-            <button 
-              className="btn-secondary"
-              onClick={() => setShowClientList(false)}
-            >
-              ← Volver
-            </button>
-          </div>
-
-          {/* Búsqueda */}
-          <div className="search-section">
-            <input
-              type="text"
-              placeholder="🔍 Buscar por nombre o documento..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          
-          <div className="clients-grid">
-            {filteredClients.map((client) => (
-              <div key={client.id} className="client-card">
-                <h4>{client.name}</h4>
-                <p>📄 Documento: {client.document}</p>
-                {client.phone && <p>📞 Teléfono: {client.phone}</p>}
-                {client.email && <p>📧 Email: {client.email}</p>}
-                {client.address && <p>🏠 Dirección: {client.address}</p>}
-                
-                <div className="client-actions">
-                  <button 
-                    onClick={() => openEditForm(client)}
-                    className="btn-small btn-edit"
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteClient(client.id, client.name)}
-                    className="btn-small btn-delete"
-                  >
-                    🗑️ Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {filteredClients.length === 0 && (
-            <p className="no-clients">
-              {clients.length === 0 
-                ? 'No hay clientes registrados todavía.' 
-                : 'No se encontraron clientes con la búsqueda.'
-              }
-            </p>
-          )}
-        </div>
+      {/* Notificación */}
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+          duration={notification.type === 'loading' ? 0 : 4000}
+        />
       )}
     </div>
   );

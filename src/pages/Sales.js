@@ -5,13 +5,13 @@ import {
   addDoc, 
   getDocs,
   updateDoc,
-  doc,
-  query,
-  where 
+  doc
 } from 'firebase/firestore';
+import Notification from '../components/Notification';
 import './Sales.css';
 
 const Sales = () => {
+  const [activeSection, setActiveSection] = useState('newSale');
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [clients, setClients] = useState([]);
@@ -21,7 +21,6 @@ const Sales = () => {
   const [cart, setCart] = useState([]);
   const [saleInProgress, setSaleInProgress] = useState(false);
   const [customer, setCustomer] = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
   const [salesHistory, setSalesHistory] = useState([]);
   const [showClientSearch, setShowClientSearch] = useState(false);
   const [showQuickClientForm, setShowQuickClientForm] = useState(false);
@@ -30,15 +29,27 @@ const Sales = () => {
     document: '',
     phone: ''
   });
+  const [loading, setLoading] = useState(false);
+
+  // Estado para notificaciones
+  const [notification, setNotification] = useState(null);
 
   // Cargar productos y clientes al iniciar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadProducts();
     loadClients();
+    loadSalesHistory();
   }, []);
+
+  // Función para mostrar notificación
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
 
   // Cargar productos
   const loadProducts = async () => {
+    setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'products'));
       const productsList = [];
@@ -49,8 +60,9 @@ const Sales = () => {
       setFilteredProducts(productsList);
     } catch (error) {
       console.error('Error cargando productos:', error);
-      alert('Error al cargar productos');
+      showNotification('❌ Error al cargar productos', 'error');
     }
+    setLoading(false);
   };
 
   // Cargar clientes
@@ -121,13 +133,13 @@ const Sales = () => {
             : item
         ));
       } else {
-        alert('No hay suficiente stock disponible');
+        showNotification('❌ No hay suficiente stock disponible', 'warning');
       }
     } else {
       if (product.stock > 0) {
         setCart([...cart, { ...product, quantity: 1 }]);
       } else {
-        alert('Producto sin stock disponible');
+        showNotification('❌ Producto sin stock disponible', 'warning');
       }
     }
   };
@@ -146,7 +158,7 @@ const Sales = () => {
 
     const product = products.find(p => p.id === productId);
     if (newQuantity > product.stock) {
-      alert(`Solo hay ${product.stock} unidades en stock`);
+      showNotification(`❌ Solo hay ${product.stock} unidades en stock`, 'warning');
       return;
     }
 
@@ -164,6 +176,8 @@ const Sales = () => {
   // Crear cliente rápido
   const handleCreateQuickClient = async (e) => {
     e.preventDefault();
+    showNotification('Creando cliente...', 'loading');
+    
     try {
       const clientData = {
         name: newQuickClient.name,
@@ -181,19 +195,21 @@ const Sales = () => {
       setNewQuickClient({ name: '', document: '', phone: '' });
       loadClients(); // Recargar lista de clientes
       
-      alert('✅ Cliente creado y seleccionado');
+      showNotification('✅ Cliente creado y seleccionado', 'success');
     } catch (error) {
       console.error('Error creando cliente:', error);
-      alert('Error al crear cliente');
+      showNotification('❌ Error al crear cliente', 'error');
     }
   };
 
   // Finalizar venta
   const completeSale = async () => {
     if (cart.length === 0) {
-      alert('El carrito está vacío');
+      showNotification('❌ El carrito está vacío', 'warning');
       return;
     }
+
+    showNotification('Procesando venta...', 'loading');
 
     try {
       // 1. Guardar la venta en Firebase
@@ -225,7 +241,7 @@ const Sales = () => {
 
       // 3. Mostrar resumen y limpiar
       const customerName = customer ? customer.name : 'Cliente general';
-      alert(`✅ Venta completada exitosamente!\nCliente: ${customerName}\nTotal: $${total}`);
+      showNotification(`✅ Venta completada - Cliente: ${customerName} - Total: $${total}`, 'success');
       
       setCart([]);
       setCustomer(null);
@@ -236,7 +252,7 @@ const Sales = () => {
 
     } catch (error) {
       console.error('Error completando venta:', error);
-      alert('Error al completar la venta');
+      showNotification('❌ Error al completar la venta', 'error');
     }
   };
 
@@ -272,314 +288,435 @@ const Sales = () => {
     });
   };
 
+  // Estadísticas
+  const todaySales = salesHistory.filter(sale => 
+    sale.createdAt?.toDate().toDateString() === new Date().toDateString()
+  );
+  const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0);
+  const totalSales = salesHistory.length;
+  const totalRevenue = salesHistory.reduce((sum, sale) => sum + sale.total, 0);
+
+  // Formatear moneda
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-UY', {
+      style: 'currency',
+      currency: 'UYU'
+    }).format(amount);
+  };
+
   return (
     <div className="page">
       <h2>🧾 Punto de Venta</h2>
 
-      {/* Botones principales */}
-      <div className="action-buttons">
+      {/* Navegación tipo Reportes */}
+      <div className="reports-nav">
         <button 
-          className="big-btn" 
-          onClick={startNewSale}
-          disabled={saleInProgress}
+          className={`report-btn ${activeSection === 'newSale' ? 'active' : ''}`}
+          onClick={() => setActiveSection('newSale')}
         >
           🛒 Nueva Venta
         </button>
-        
         <button 
-          className="big-btn" 
+          className={`report-btn ${activeSection === 'salesHistory' ? 'active' : ''}`}
           onClick={() => {
-            setShowHistory(true);
+            setActiveSection('salesHistory');
             loadSalesHistory();
           }}
         >
-          📜 Historial de Ventas
+          📜 Historial
         </button>
-        
-        <button className="big-btn">🔍 Buscar Venta</button>
-        <button className="big-btn">📄 Facturas del Día</button>
+        <button 
+          className={`report-btn ${activeSection === 'todaySales' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveSection('todaySales');
+            loadSalesHistory();
+          }}
+        >
+          📅 Hoy
+        </button>
       </div>
 
-      {/* Proceso de venta */}
-      {saleInProgress && (
-        <div className="sale-process">
-          <div className="sale-header">
-            <h3>🛒 Venta en Proceso</h3>
-            <button 
-              className="btn-secondary"
-              onClick={() => setSaleInProgress(false)}
-            >
-              ❌ Cancelar Venta
-            </button>
+      {/* Contenido principal */}
+      <div className="reports-content">
+        {loading ? (
+          <div className="loading">
+            <div className="loading-spinner"></div>
+            Cargando...
           </div>
-
-          {/* Información del cliente */}
-          <div className="customer-section">
-            <div className="customer-display">
-              {customer ? (
-                <div className="selected-customer">
-                  <span>👤 Cliente: <strong>{customer.name}</strong> ({customer.document})</span>
-                  <button 
-                    onClick={removeCustomer}
-                    className="btn-small btn-remove"
-                  >
-                    ❌
-                  </button>
-                </div>
-              ) : (
-                <div className="no-customer">
-                  <span>👤 Cliente general</span>
-                  <button 
-                    onClick={() => setShowClientSearch(true)}
-                    className="btn-small btn-primary"
-                  >
-                    🔍 Buscar Cliente
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Búsqueda de clientes */}
-          {showClientSearch && (
-            <div className="client-search-overlay">
-              <div className="client-search-container">
-                <div className="client-search-header">
-                  <h4>🔍 Buscar Cliente</h4>
-                  <button 
-                    onClick={() => setShowClientSearch(false)}
-                    className="btn-secondary"
-                  >
-                    ❌ Cerrar
-                  </button>
-                </div>
-
-                <div className="client-search-actions">
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre o documento..."
-                    value={clientSearchTerm}
-                    onChange={(e) => setClientSearchTerm(e.target.value)}
-                    className="search-input"
-                  />
-                  <button 
-                    onClick={() => setShowQuickClientForm(true)}
-                    className="btn-primary"
-                  >
-                    ➕ Cliente Nuevo
-                  </button>
-                </div>
-
-                <div className="clients-results">
-                  {filteredClients.map((client) => (
-                    <div 
-                      key={client.id} 
-                      className="client-result-item"
-                      onClick={() => selectCustomer(client)}
-                    >
-                      <div className="client-info">
-                        <strong>{client.name}</strong>
-                        <span>📄 {client.document}</span>
-                        {client.phone && <span>📞 {client.phone}</span>}
-                      </div>
-                      <button className="btn-select">✅ Seleccionar</button>
-                    </div>
-                  ))}
-                  
-                  {filteredClients.length === 0 && (
-                    <p className="no-results">No se encontraron clientes</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Formulario rápido de cliente */}
-          {showQuickClientForm && (
-            <div className="form-overlay">
-              <div className="form-container">
-                <h4>➕ Crear Cliente Rápido</h4>
-                <form onSubmit={handleCreateQuickClient}>
-                  <div className="form-group">
-                    <label>Nombre:</label>
-                    <input
-                      type="text"
-                      value={newQuickClient.name}
-                      onChange={(e) => setNewQuickClient({...newQuickClient, name: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Documento:</label>
-                    <input
-                      type="text"
-                      value={newQuickClient.document}
-                      onChange={(e) => setNewQuickClient({...newQuickClient, document: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Teléfono:</label>
-                    <input
-                      type="tel"
-                      value={newQuickClient.phone}
-                      onChange={(e) => setNewQuickClient({...newQuickClient, phone: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-buttons">
-                    <button type="submit" className="btn-primary">
-                      ✅ Crear y Seleccionar
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn-secondary"
-                      onClick={() => setShowQuickClientForm(false)}
-                    >
-                      ❌ Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          <div className="sale-layout">
-            {/* Columna izquierda - Búsqueda y productos */}
-            <div className="products-column">
-              <div className="search-section">
-                <input
-                  type="text"
-                  placeholder="🔍 Buscar producto por nombre o código..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input"
-                />
-              </div>
-
-              <div className="products-grid">
-                {filteredProducts.map((product) => (
-                  <div 
-                    key={product.id} 
-                    className={`product-item ${product.stock === 0 ? 'out-of-stock' : ''}`}
-                    onClick={() => product.stock > 0 && addToCart(product)}
-                  >
-                    <h4>{product.name}</h4>
-                    <p>💰 ${product.price}</p>
-                    <p>📦 Stock: {product.stock}</p>
-                    {product.stock === 0 && <span className="stock-warning">SIN STOCK</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Columna derecha - Carrito */}
-            <div className="cart-column">
-              <div className="cart-container">
-                <h4>🛒 Carrito de Compra</h4>
+        ) : (
+          <>
+            {/* Sección: Nueva Venta */}
+            {activeSection === 'newSale' && (
+              <div className="report-section">
+                <h3>🛒 Nueva Venta</h3>
                 
-                {cart.length === 0 ? (
-                  <p className="empty-cart">El carrito está vacío</p>
-                ) : (
-                  <>
-                    <div className="cart-items">
-                      {cart.map((item) => (
-                        <div key={item.id} className="cart-item">
-                          <div className="item-info">
-                            <span className="item-name">{item.name}</span>
-                            <span className="item-price">${item.price} c/u</span>
-                          </div>
-                          <div className="item-controls">
-                            <button 
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="qty-btn"
-                            >
-                              -
-                            </button>
-                            <span className="item-qty">{item.quantity}</span>
-                            <button 
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="qty-btn"
-                              disabled={item.quantity >= item.stock}
-                            >
-                              +
-                            </button>
-                            <button 
-                              onClick={() => removeFromCart(item.id)}
-                              className="remove-btn"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                          <div className="item-total">
-                            ${(item.price * item.quantity).toFixed(2)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="summary-cards">
+                  <div className="summary-card today-sales">
+                    <h4>Ventas Hoy</h4>
+                    <p className="amount">{formatCurrency(todayTotal)}</p>
+                  </div>
+                  <div className="summary-card total-sales">
+                    <h4>Total Ventas</h4>
+                    <p className="amount">{totalSales}</p>
+                  </div>
+                  <div className="summary-card total-revenue">
+                    <h4>Ingresos Totales</h4>
+                    <p className="amount">{formatCurrency(totalRevenue)}</p>
+                  </div>
+                </div>
 
-                    <div className="cart-totals">
-                      <div className="total-line">
-                        <span>Subtotal:</span>
-                        <span>${subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="total-line grand-total">
-                        <span>Total:</span>
-                        <span>${total.toFixed(2)}</span>
-                      </div>
-                    </div>
-
+                {/* Proceso de venta */}
+                {!saleInProgress ? (
+                  <div className="start-sale-container">
                     <button 
-                      onClick={completeSale}
-                      className="btn-primary complete-sale-btn"
+                      onClick={startNewSale}
+                      className="btn-primary big-add-btn"
                     >
-                      ✅ Finalizar Venta
+                      🛒 Iniciar Nueva Venta
                     </button>
-                  </>
+                  </div>
+                ) : (
+                  <div className="sale-process">
+                    {/* Información del cliente */}
+                    <div className="customer-section">
+                      <div className="customer-display">
+                        {customer ? (
+                          <div className="selected-customer">
+                            <span>👤 Cliente: <strong>{customer.name}</strong> ({customer.document})</span>
+                            <button 
+                              onClick={removeCustomer}
+                              className="btn-small btn-remove"
+                            >
+                              ❌
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="no-customer">
+                            <span>👤 Cliente general</span>
+                            <button 
+                              onClick={() => setShowClientSearch(true)}
+                              className="btn-small btn-primary"
+                            >
+                              🔍 Buscar Cliente
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="sale-layout">
+                      {/* Columna izquierda - Búsqueda y productos */}
+                      <div className="products-column">
+                        <div className="search-section">
+                          <input
+                            type="text"
+                            placeholder="🔍 Buscar producto por nombre o código..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="search-input"
+                          />
+                        </div>
+
+                        <div className="products-grid">
+                          {filteredProducts.map((product) => (
+                            <div 
+                              key={product.id} 
+                              className={`product-item ${product.stock === 0 ? 'out-of-stock' : ''}`}
+                              onClick={() => product.stock > 0 && addToCart(product)}
+                            >
+                              <h4>{product.name}</h4>
+                              <p>💰 ${product.price}</p>
+                              <p>📦 Stock: {product.stock}</p>
+                              {product.stock === 0 && <span className="stock-warning">SIN STOCK</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Columna derecha - Carrito */}
+                      <div className="cart-column">
+                        <div className="cart-container">
+                          <h4>🛒 Carrito de Compra</h4>
+                          
+                          {cart.length === 0 ? (
+                            <p className="empty-cart">El carrito está vacío</p>
+                          ) : (
+                            <>
+                              <div className="cart-items">
+                                {cart.map((item) => (
+                                  <div key={item.id} className="cart-item">
+                                    <div className="item-info">
+                                      <span className="item-name">{item.name}</span>
+                                      <span className="item-price">${item.price} c/u</span>
+                                    </div>
+                                    <div className="item-controls">
+                                      <button 
+                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                        className="qty-btn"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="item-qty">{item.quantity}</span>
+                                      <button 
+                                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                        className="qty-btn"
+                                        disabled={item.quantity >= item.stock}
+                                      >
+                                        +
+                                      </button>
+                                      <button 
+                                        onClick={() => removeFromCart(item.id)}
+                                        className="remove-btn"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                    <div className="item-total">
+                                      ${(item.price * item.quantity).toFixed(2)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="cart-totals">
+                                <div className="total-line">
+                                  <span>Subtotal:</span>
+                                  <span>${subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="total-line grand-total">
+                                  <span>Total:</span>
+                                  <span>${total.toFixed(2)}</span>
+                                </div>
+                              </div>
+
+                              <button 
+                                onClick={completeSale}
+                                className="btn-primary complete-sale-btn"
+                              >
+                                ✅ Finalizar Venta
+                              </button>
+                              
+                              <button 
+                                onClick={() => setSaleInProgress(false)}
+                                className="btn-secondary"
+                                style={{ marginTop: '10px' }}
+                              >
+                                ❌ Cancelar Venta
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
+            )}
+
+            {/* Sección: Historial de Ventas */}
+            {activeSection === 'salesHistory' && (
+              <div className="report-section">
+                <h3>📜 Historial de Ventas ({salesHistory.length})</h3>
+
+                {salesHistory.length > 0 ? (
+                  <div className="table-container">
+                    <table className="sales-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Cliente</th>
+                          <th>Productos</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesHistory.map((sale) => (
+                          <tr key={sale.id}>
+                            <td>{formatDate(sale.createdAt)}</td>
+                            <td>{sale.customerName}</td>
+                            <td>
+                              {sale.items?.slice(0, 2).map(item => item.name).join(', ')}
+                              {sale.items?.length > 2 && '...'}
+                            </td>
+                            <td className="amount">{formatCurrency(sale.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="no-data">No hay ventas registradas</p>
+                )}
+              </div>
+            )}
+
+            {/* Sección: Ventas de Hoy */}
+            {activeSection === 'todaySales' && (
+              <div className="report-section">
+                <h3>📅 Ventas de Hoy - {new Date().toLocaleDateString('es-ES')}</h3>
+
+                <div className="summary-cards">
+                  <div className="summary-card today-sales">
+                    <h4>Total Vendido Hoy</h4>
+                    <p className="amount">{formatCurrency(todayTotal)}</p>
+                  </div>
+                  <div className="summary-card total-transactions">
+                    <h4>Ventas Realizadas</h4>
+                    <p className="amount">{todaySales.length}</p>
+                  </div>
+                </div>
+
+                {todaySales.length > 0 ? (
+                  <div className="table-container">
+                    <table className="sales-table">
+                      <thead>
+                        <tr>
+                          <th>Hora</th>
+                          <th>Cliente</th>
+                          <th>Productos</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {todaySales.map((sale) => (
+                          <tr key={sale.id}>
+                            <td>
+                              {sale.createdAt?.toDate().toLocaleTimeString('es-ES', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                            <td>{sale.customerName}</td>
+                            <td>
+                              {sale.items?.slice(0, 2).map(item => item.name).join(', ')}
+                              {sale.items?.length > 2 && '...'}
+                            </td>
+                            <td className="amount">{formatCurrency(sale.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="no-data">No hay ventas registradas hoy</p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Búsqueda de clientes */}
+      {showClientSearch && (
+        <div className="form-overlay">
+          <div className="form-container">
+            <div className="form-header">
+              <h3>🔍 Buscar Cliente</h3>
+              <button 
+                onClick={() => setShowClientSearch(false)}
+                className="btn-close"
+              >
+                ❌ Cerrar
+              </button>
+            </div>
+
+            <div className="client-search-actions">
+              <input
+                type="text"
+                placeholder="Buscar por nombre o documento..."
+                value={clientSearchTerm}
+                onChange={(e) => setClientSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              <button 
+                onClick={() => setShowQuickClientForm(true)}
+                className="btn-primary"
+              >
+                ➕ Cliente Nuevo
+              </button>
+            </div>
+
+            <div className="clients-results">
+              {filteredClients.map((client) => (
+                <div 
+                  key={client.id} 
+                  className="client-result-item"
+                  onClick={() => selectCustomer(client)}
+                >
+                  <div className="client-info">
+                    <strong>{client.name}</strong>
+                    <span>📄 {client.document}</span>
+                    {client.phone && <span>📞 {client.phone}</span>}
+                  </div>
+                  <button className="btn-select">✅ Seleccionar</button>
+                </div>
+              ))}
+              
+              {filteredClients.length === 0 && (
+                <p className="no-results">No se encontraron clientes</p>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Historial de ventas */}
-      {showHistory && (
-        <div className="history-overlay">
-          <div className="history-container">
-            <div className="history-header">
-              <h3>📜 Historial de Ventas</h3>
-              <button 
-                className="btn-secondary"
-                onClick={() => setShowHistory(false)}
-              >
-                ← Volver
-              </button>
-            </div>
-
-            <div className="sales-list">
-              {salesHistory.map((sale) => (
-                <div key={sale.id} className="sale-item">
-                  <div className="sale-header-info">
-                    <span className="sale-date">{formatDate(sale.createdAt)}</span>
-                    <span className="sale-customer">{sale.customerName}</span>
-                    <span className="sale-total">${sale.total?.toFixed(2)}</span>
-                  </div>
-                  <div className="sale-items">
-                    {sale.items?.map((item, index) => (
-                      <div key={index} className="sale-item-product">
-                        {item.quantity}x {item.name} - ${(item.price * item.quantity).toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              
-              {salesHistory.length === 0 && (
-                <p className="no-sales">No hay ventas registradas</p>
-              )}
-            </div>
+      {/* Formulario rápido de cliente */}
+      {showQuickClientForm && (
+        <div className="form-overlay">
+          <div className="form-container">
+            <h3>➕ Crear Cliente Rápido</h3>
+            <form onSubmit={handleCreateQuickClient}>
+              <div className="form-group">
+                <label>Nombre:</label>
+                <input
+                  type="text"
+                  value={newQuickClient.name}
+                  onChange={(e) => setNewQuickClient({...newQuickClient, name: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Documento:</label>
+                <input
+                  type="text"
+                  value={newQuickClient.document}
+                  onChange={(e) => setNewQuickClient({...newQuickClient, document: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Teléfono:</label>
+                <input
+                  type="tel"
+                  value={newQuickClient.phone}
+                  onChange={(e) => setNewQuickClient({...newQuickClient, phone: e.target.value})}
+                />
+              </div>
+              <div className="form-buttons">
+                <button type="submit" className="btn-primary">
+                  ✅ Crear y Seleccionar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-secondary"
+                  onClick={() => setShowQuickClientForm(false)}
+                >
+                  ❌ Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
+
+      {/* Notificación */}
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+          duration={notification.type === 'loading' ? 0 : 4000}
+        />
       )}
     </div>
   );
