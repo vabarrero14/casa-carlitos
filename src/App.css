@@ -6,7 +6,7 @@
 
 body {
   font-family: 'Arial', sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   background-color: #f5f5f5;
   line-height: 1.6;
 }
@@ -21,29 +21,29 @@ body {
 .app-header {
   background: #2c3e50;
   color: white;
-  padding: 25px 20px;
+  padding: 20px 15px;
   text-align: center;
-  font-size: 1.3em;
+  font-size: 1.2em;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .app-header h1 {
   margin-bottom: 5px;
-  font-size: 1.8em;
+  font-size: 1.6em;
 }
 
 .app-header p {
   opacity: 0.9;
-  font-size: 0.9em;
+  font-size: 0.85em;
 }
 
 .main-content {
-  padding: 25px 20px;
-  min-height: calc(100vh - 160px);
-  padding-bottom: 80px; /* Espacio para la navegación */
+  padding: 20px 15px;
+  min-height: calc(100vh - 140px);
+  padding-bottom: 70px;
 }
 
-/* Navegación inferior - 5 BOTONES */
+/* Navegación inferior - 6 BOTONES OPTIMIZADO */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -51,21 +51,22 @@ body {
   right: 0;
   background: #34495e;
   display: flex;
-  padding: 8px;
-  gap: 4px;
+  padding: 6px;
+  gap: 3px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .nav-btn {
   flex: 1;
-  padding: 10px 5px;
-  font-size: 0.9em;
+  padding: 8px 3px;
+  font-size: 0.75em;
   background: #ecf0f1;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .nav-btn.active {
@@ -86,25 +87,25 @@ body {
 
 .page h2 {
   color: #2c3e50;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
   text-align: center;
-  font-size: 1.8em;
+  font-size: 1.6em;
 }
 
 .action-buttons {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  margin-top: 30px;
+  gap: 12px;
+  margin-top: 25px;
 }
 
 .big-btn {
-  padding: 25px 20px;
-  font-size: 1.3em;
+  padding: 20px 15px;
+  font-size: 1.1em;
   background: #3498db;
   color: white;
   border: none;
-  border-radius: 15px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 600;
@@ -113,59 +114,88 @@ body {
 
 .big-btn:hover {
   background: #2980b9;
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Responsive */
+.big-btn:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive optimizado para 6 botones */
 @media (max-width: 768px) {
   body {
-    font-size: 18px;
+    font-size: 16px;
   }
   
   .main-content {
-    padding: 20px 15px;
-    padding-bottom: 80px;
+    padding: 15px 12px;
+    padding-bottom: 70px;
   }
   
   .big-btn {
-    padding: 22px 15px;
-    font-size: 1.2em;
+    padding: 18px 12px;
+    font-size: 1em;
   }
   
-  /* Ajustes específicos para navegación en tablets */
-  .nav-btn {
-    font-size: 0.85em;
-    padding: 9px 4px;
+  .app-header {
+    padding: 15px 12px;
+  }
+  
+  .app-header h1 {
+    font-size: 1.4em;
+  }
+  
+  .page h2 {
+    font-size: 1.4em;
   }
 }
 
 @media (max-width: 480px) {
   .nav-btn {
-    font-size: 0.8em;
-    padding: 8px 3px;
+    font-size: 0.7em;
+    padding: 6px 2px;
   }
   
   .bottom-nav {
-    padding: 6px;
-    gap: 3px;
+    padding: 4px;
+    gap: 2px;
   }
   
   .app-header {
-    padding: 20px 15px;
+    padding: 12px 10px;
   }
   
   .app-header h1 {
-    font-size: 1.6em;
+    font-size: 1.3em;
+  }
+  
+  .app-header p {
+    font-size: 0.8em;
   }
   
   .page h2 {
-    font-size: 1.5em;
+    font-size: 1.3em;
   }
   
   .big-btn {
-    padding: 20px 12px;
-    font-size: 1.1em;
+    padding: 16px 10px;
+    font-size: 0.95em;
+  }
+  
+  .main-content {
+    padding: 12px 10px;
+    padding-bottom: 65px;
+  }
+}
+
+/* Para tablets en landscape */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .nav-btn {
+    font-size: 0.8em;
+    padding: 9px 4px;
   }
 }
 

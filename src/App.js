@@ -4,7 +4,8 @@ import Products from './pages/Products';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import Clients from './pages/Clients';
-import Suppliers from './pages/Suppliers'; // ← Nueva importación
+import Suppliers from './pages/Suppliers';
+import Purchases from './pages/Purchases'; // ← Nueva importación
 
 function App() {
   const [currentSection, setCurrentSection] = useState('products');
@@ -15,9 +16,11 @@ function App() {
         return <Products />;
       case 'sales':
         return <Sales />;
+      case 'purchases': // ← Nuevo caso
+        return <Purchases />;
       case 'clients':
         return <Clients />;
-      case 'suppliers': // ← Nuevo caso
+      case 'suppliers':
         return <Suppliers />;
       case 'reports':
         return <Reports />;
@@ -39,7 +42,7 @@ function App() {
         {renderSection()}
       </main>
 
-      {/* Navegación inferior - 5 botones */}
+      {/* Navegación inferior - 6 BOTONES */}
       <nav className="bottom-nav">
         <button
           className={`nav-btn ${currentSection === 'products' ? 'active' : ''}`}
@@ -53,6 +56,13 @@ function App() {
           onClick={() => setCurrentSection('sales')}
         >
           💰 Ventas
+        </button>
+        
+        <button
+          className={`nav-btn ${currentSection === 'purchases' ? 'active' : ''}`}
+          onClick={() => setCurrentSection('purchases')}
+        >
+          🛒 Compras
         </button>
         
         <button

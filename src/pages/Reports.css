@@ -565,3 +565,133 @@
   .stock-table thead th:last-child {
     border-radius: 0 10px 0 0;
   }
+
+  /* Agrega esto al final de tu Purchases.css */
+
+/* Historial de compras */
+.history-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .history-container {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .history-header h3 {
+    color: #2c3e50;
+    margin: 0;
+  }
+  
+  .purchases-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .purchase-history-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+  }
+  
+  .purchase-header-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .purchase-date {
+    color: #7f8c8d;
+    font-size: 0.9em;
+  }
+  
+  .purchase-supplier {
+    font-weight: 600;
+    color: #2c3e50;
+  }
+  
+  .purchase-number {
+    color: #3498db;
+    font-weight: 600;
+  }
+  
+  .purchase-total {
+    font-weight: bold;
+    color: #27ae60;
+    font-size: 1.1em;
+  }
+  
+  .purchase-items-details {
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  
+  .purchase-item-detail {
+    padding: 2px 0;
+    border-bottom: 1px solid #ecf0f1;
+  }
+  
+  .purchase-item-detail:last-child {
+    border-bottom: none;
+  }
+  
+  .purchase-notes-detail {
+    font-size: 0.85em;
+    color: #7f8c8d;
+    font-style: italic;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #bdc3c7;
+  }
+  
+  .no-purchases {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 40px 0;
+  }
+  
+  /* Responsive para historial */
+  @media (max-width: 768px) {
+    .history-container {
+      width: 95%;
+      padding: 20px;
+    }
+    
+    .purchase-header-info {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+    }
+    
+    .purchase-history-item {
+      padding: 12px;
+    }
+  }
