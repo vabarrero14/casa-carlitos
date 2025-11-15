@@ -1,5 +1,4 @@
-/* Dashboard.css - Diseño serio y profesional (VERSIÓN ORIGINAL) */
-
+/* Dashboard.css - Diseño serio y profesional */
 .dashboard {
     min-height: 100vh;
     background: #f8f9fa;
@@ -109,6 +108,7 @@
   
   .module-content {
     flex: 1;
+    position: relative;
   }
   
   .module-content h3 {
@@ -123,6 +123,18 @@
     margin: 0;
     font-size: 0.9em;
     line-height: 1.4;
+  }
+  
+  .admin-badge {
+    background: #e74c3c;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: bold;
+    position: absolute;
+    top: 0;
+    right: 0;
   }
   
   .module-arrow {

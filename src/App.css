@@ -1,5 +1,3 @@
-/* App.css - Actualizado para diseño profesional */
-
 * {
   margin: 0;
   padding: 0;
@@ -81,6 +79,18 @@ body {
 .user-name {
   font-size: 0.95em;
   opacity: 0.9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-badge {
+  background: #e74c3c;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7em;
+  font-weight: 600;
 }
 
 .logout-btn {
@@ -106,6 +116,38 @@ body {
   min-height: calc(100vh - 80px);
 }
 
+/* Estilos para acceso denegado */
+.access-denied {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px;
+}
+
+.denied-content {
+  text-align: center;
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #e74c3c;
+  max-width: 400px;
+  width: 100%;
+}
+
+.denied-content h2 {
+  color: #e74c3c;
+  margin-bottom: 15px;
+  font-size: 1.5em;
+}
+
+.denied-content p {
+  color: #7f8c8d;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header-content {
@@ -127,6 +169,14 @@ body {
   .main-content {
     padding: 0 15px;
   }
+
+  .access-denied {
+    padding: 20px;
+  }
+
+  .denied-content {
+    padding: 30px 20px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -138,5 +188,9 @@ body {
     display: block;
     margin-left: 0;
     margin-top: 5px;
+  }
+
+  .denied-content h2 {
+    font-size: 1.3em;
   }
 }

@@ -11,20 +11,39 @@ const Dashboard = ({ onNavigate, currentUser }) => {
     todayMovements: 0
   });
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState('user');
 
-  // Cargar estadísticas reales
+  // Cargar estadísticas reales y rol del usuario
   useEffect(() => {
     loadRealStats();
-  }, []);
+    loadUserRole();
+  }, [currentUser]);
+
+  const loadUserRole = async () => {
+    try {
+      const approvedQuery = query(
+        collection(db, 'approved_users'),
+        where('email', '==', currentUser)
+      );
+      const approvedSnapshot = await getDocs(approvedQuery);
+      
+      if (!approvedSnapshot.empty) {
+        const userData = approvedSnapshot.docs[0].data();
+        setUserRole(userData.role || 'user');
+      }
+    } catch (error) {
+      console.error('Error cargando rol:', error);
+    }
+  };
 
   const loadRealStats = async () => {
     try {
       setLoading(true);
-      
+
       // 1. Total de productos
       const productsSnapshot = await getDocs(collection(db, 'products'));
       const totalProducts = productsSnapshot.size;
-      
+
       // 2. Productos con stock bajo (<= 10)
       const lowStockProducts = productsSnapshot.docs.filter(doc => {
         const product = doc.data();
@@ -34,7 +53,6 @@ const Dashboard = ({ onNavigate, currentUser }) => {
       // 3. Ventas de hoy
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
       const salesQuery = query(
         collection(db, 'sales'),
         where('createdAt', '>=', today)
@@ -58,7 +76,6 @@ const Dashboard = ({ onNavigate, currentUser }) => {
         lowStockProducts,
         todayMovements
       });
-
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     } finally {
@@ -115,8 +132,21 @@ const Dashboard = ({ onNavigate, currentUser }) => {
       icon: '📈',
       description: 'Estadísticas e informes del negocio',
       color: '#c0392b'
+    },
+    {
+      id: 'userApproval',
+      title: 'Gestión de Usuarios',
+      icon: '👥',
+      description: 'Aprobar o rechazar solicitudes de acceso',
+      color: '#e74c3c',
+      adminOnly: true
     }
   ];
+
+  // Filtrar módulos según el rol del usuario
+  const filteredModules = modules.filter(module => 
+    !module.adminOnly || userRole === 'admin'
+  );
 
   // Formatear moneda
   const formatCurrency = (amount) => {
@@ -128,29 +158,29 @@ const Dashboard = ({ onNavigate, currentUser }) => {
 
   return (
     <div className="dashboard">
-      {/* Header del Dashboard - Mismo diseño original */}
+      {/* Header del Dashboard */}
       <div className="dashboard-header">
         <div className="dashboard-title">
           <h1>🏠 Sistema de Gestión - Casa Carlitos</h1>
-          <p>Bienvenido, <strong>{currentUser}</strong></p>
+          <p>Bienvenido, <strong>{currentUser}</strong> ({userRole})</p>
         </div>
         <div className="dashboard-info">
           <div className="info-card">
             <span className="info-label">Ferretería y Pinturería</span>
-            <span className="info-date">{new Date().toLocaleDateString('es-ES', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            <span className="info-date">{new Date().toLocaleDateString('es-ES', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })}</span>
           </div>
         </div>
       </div>
 
-      {/* Módulos del Sistema - Mismo diseño original */}
+      {/* Módulos del Sistema */}
       <div className="modules-grid">
-        {modules.map(module => (
-          <div 
+        {filteredModules.map(module => (
+          <div
             key={module.id}
             className="module-card"
             onClick={() => onNavigate(module.id)}
@@ -162,6 +192,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
             <div className="module-content">
               <h3>{module.title}</h3>
               <p>{module.description}</p>
+              {module.adminOnly && <span className="admin-badge">ADMIN</span>}
             </div>
             <div className="module-arrow">
               →
@@ -170,7 +201,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
         ))}
       </div>
 
-      {/* Estadísticas rápidas - Mismo diseño pero con datos reales */}
+      {/* Estadísticas rápidas */}
       <div className="quick-stats">
         <h2>Resumen Rápido</h2>
         <div className="stats-grid">

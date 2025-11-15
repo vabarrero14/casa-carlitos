@@ -11,6 +11,7 @@ import Clients from './pages/Clients';
 import Suppliers from './pages/Suppliers';
 import Purchases from './pages/Purchases';
 import StockMovements from './pages/StockMovements';
+import UserApproval from './pages/UserApproval';
 
 function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
@@ -79,6 +80,8 @@ function App() {
         return <Reports />;
       case 'stockMovements':
         return <StockMovements />;
+      case 'userApproval':
+        return <UserApproval currentUser={currentUser} />;
       default:
         return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
     }
@@ -87,9 +90,18 @@ function App() {
   // Mostrar loading mientras verifica autenticación
   if (loading) {
     return (
-      <div className="loading-screen">
-        <div className="loading-spinner-large"></div>
-        <p>Cargando sistema...</p>
+      <div className="login-container">
+        <div className="login-background">
+          <div className="login-card">
+            <div className="login-header">
+              <div className="logo-container">
+                <div className="logo-icon">🏠</div>
+                <h1>Casa Carlitos</h1>
+              </div>
+              <p className="login-subtitle">Cargando sistema...</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -109,7 +121,6 @@ function App() {
             <h1>🏠 Casa Carlitos</h1>
             <span className="header-subtitle">Sistema de Gestión</span>
           </div>
-          
           <div className="header-actions">
             {currentSection !== 'dashboard' && (
               <button onClick={handleBackToDashboard} className="back-btn">
