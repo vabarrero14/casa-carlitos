@@ -202,7 +202,7 @@ const Sales = () => {
     }
   };
 
-  // Finalizar venta
+  // Finalizar venta - VERSIÓN CON REGISTRO DE MOVIMIENTOS
   const completeSale = async () => {
     if (cart.length === 0) {
       showNotification('❌ El carrito está vacío', 'warning');
@@ -212,8 +212,12 @@ const Sales = () => {
     showNotification('Procesando venta...', 'loading');
 
     try {
+      // Generar número de venta
+      const saleNumber = `VENT-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`;
+
       // 1. Guardar la venta en Firebase
       const saleData = {
+        saleNumber,
         items: cart,
         customer: customer ? {
           id: customer.id,
@@ -227,13 +231,33 @@ const Sales = () => {
         status: 'completed'
       };
 
-      await addDoc(collection(db, 'sales'), saleData);
+      const saleDocRef = await addDoc(collection(db, 'sales'), saleData);
 
-      // 2. Actualizar stock de cada producto
+      // 2. Actualizar stock de cada producto + REGISTRAR MOVIMIENTOS
       const updatePromises = cart.map(async (item) => {
-        const newStock = item.stock - item.quantity;
+        const stockAnterior = item.stock;
+        const newStock = stockAnterior - item.quantity;
+        
+        // Actualizar stock del producto
         await updateDoc(doc(db, 'products', item.id), {
           stock: newStock
+        });
+
+        // REGISTRAR MOVIMIENTO DE VENTA
+        await addDoc(collection(db, 'stock_movements'), {
+          productId: item.id,
+          productName: item.name,
+          fecha: new Date(),
+          tipo: "venta",
+          stockAnterior: stockAnterior,
+          cantidad: item.quantity,
+          stockActual: newStock,
+          referencia: saleNumber,
+          cliente: customer ? customer.name : 'Cliente general',
+          precioVenta: item.price,
+          totalMovimiento: item.price * item.quantity,
+          usuario: "Sistema",
+          ventaId: saleDocRef.id
         });
       });
 

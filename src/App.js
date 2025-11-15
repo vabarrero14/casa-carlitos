@@ -1,22 +1,49 @@
 import React, { useState } from 'react';
 import './App.css';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import Clients from './pages/Clients';
 import Suppliers from './pages/Suppliers';
-import Purchases from './pages/Purchases'; // ← Nueva importación
+import Purchases from './pages/Purchases';
+import StockMovements from './pages/StockMovements';
 
 function App() {
-  const [currentSection, setCurrentSection] = useState('products');
+  const [currentSection, setCurrentSection] = useState('dashboard');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState('');
+
+  const handleLogin = (username) => {
+    setIsLoggedIn(true);
+    setCurrentUser(username);
+    setCurrentSection('dashboard');
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser('');
+    setCurrentSection('dashboard');
+  };
+
+  const handleNavigate = (section) => {
+    setCurrentSection(section);
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentSection('dashboard');
+  };
 
   const renderSection = () => {
     switch (currentSection) {
+      case 'dashboard':
+        return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
       case 'products':
         return <Products />;
       case 'sales':
         return <Sales />;
-      case 'purchases': // ← Nuevo caso
+      case 'purchases':
         return <Purchases />;
       case 'clients':
         return <Clients />;
@@ -24,68 +51,49 @@ function App() {
         return <Suppliers />;
       case 'reports':
         return <Reports />;
+      case 'stockMovements':
+        return <StockMovements />;
       default:
-        return <Products />;
+        return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
     }
   };
 
+  // Si no está logueado, mostrar login
+  if (!isLoggedIn) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // Si está logueado, mostrar la aplicación
   return (
     <div className="App">
-      {/* Header simple */}
+      {/* Header profesional */}
       <header className="app-header">
-        <h1>Casa Carlitos</h1>
-        <p>Ferretería y Pinturería</p>
+        <div className="header-content">
+          <div className="header-brand">
+            <h1>🏠 Casa Carlitos</h1>
+            <span className="header-subtitle">Sistema de Gestión</span>
+          </div>
+          
+          <div className="header-actions">
+            {currentSection !== 'dashboard' && (
+              <button onClick={handleBackToDashboard} className="back-btn">
+                ← Volver al Inicio
+              </button>
+            )}
+            <div className="user-info">
+              <span className="user-name">👤 {currentUser}</span>
+              <button onClick={handleLogout} className="logout-btn">
+                🚪 Salir
+              </button>
+            </div>
+          </div>
+        </div>
       </header>
 
       {/* Contenido principal */}
       <main className="main-content">
         {renderSection()}
       </main>
-
-      {/* Navegación inferior - 6 BOTONES */}
-      <nav className="bottom-nav">
-        <button
-          className={`nav-btn ${currentSection === 'products' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('products')}
-        >
-          📦 Productos
-        </button>
-        
-        <button
-          className={`nav-btn ${currentSection === 'sales' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('sales')}
-        >
-          💰 Ventas
-        </button>
-        
-        <button
-          className={`nav-btn ${currentSection === 'purchases' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('purchases')}
-        >
-          🛒 Compras
-        </button>
-        
-        <button
-          className={`nav-btn ${currentSection === 'clients' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('clients')}
-        >
-          👥 Clientes
-        </button>
-        
-        <button
-          className={`nav-btn ${currentSection === 'suppliers' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('suppliers')}
-        >
-          🚚 Proveedores
-        </button>
-        
-        <button
-          className={`nav-btn ${currentSection === 'reports' ? 'active' : ''}`}
-          onClick={() => setCurrentSection('reports')}
-        >
-          📊 Reportes
-        </button>
-      </nav>
     </div>
   );
 }

@@ -213,7 +213,7 @@ const Purchases = () => {
     }).format(amount);
   };
 
-  // Finalizar compra
+  // Finalizar compra - VERSIÓN CON REGISTRO DE MOVIMIENTOS
   const completePurchase = async () => {
     if (purchaseItems.length === 0) {
       alert('❌ No hay productos en la compra');
@@ -253,16 +253,35 @@ const Purchases = () => {
         createdAt: new Date()
       };
 
-      await addDoc(collection(db, 'purchases'), purchaseData);
+      const purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseData);
 
-      // 2. Actualizar stock y precio de costo de cada producto
+      // 2. Actualizar stock y precio de costo de cada producto + REGISTRAR MOVIMIENTOS
       const updatePromises = purchaseItems.map(async (item) => {
         const currentProduct = products.find(p => p.id === item.id);
-        const newStock = (currentProduct?.stock || 0) + item.quantity;
+        const stockAnterior = currentProduct?.stock || 0;
+        const newStock = stockAnterior + item.quantity;
         
+        // Actualizar stock del producto
         await updateDoc(doc(db, 'products', item.id), {
           stock: newStock,
           costPrice: item.purchasePrice || 0
+        });
+
+        // REGISTRAR MOVIMIENTO DE COMPRA
+        await addDoc(collection(db, 'stock_movements'), {
+          productId: item.id,
+          productName: item.name,
+          fecha: new Date(),
+          tipo: "compra",
+          stockAnterior: stockAnterior,
+          cantidad: item.quantity,
+          stockActual: newStock,
+          referencia: purchaseNumber,
+          proveedor: selectedSupplier.name,
+          precioCompra: item.purchasePrice || 0,
+          totalMovimiento: (item.purchasePrice || 0) * item.quantity,
+          usuario: "Sistema",
+          compraId: purchaseDocRef.id
         });
       });
 

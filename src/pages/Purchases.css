@@ -546,4 +546,111 @@
     .product-item {
       padding: 12px;
     }
+    /* Products.css - Estilos adicionales para movimientos */
+
+/* Botón de movimientos */
+.btn-movements {
+  background: #3498db !important;
+}
+
+.btn-movements:hover {
+  background: #2980b9 !important;
+}
+
+/* Modal grande para movimientos */
+.large-modal {
+  max-width: 900px;
+  max-height: 80vh;
+}
+
+.product-movements-info {
+  margin-bottom: 20px;
+}
+
+.product-info-card {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.product-info-card h4 {
+  margin: 0 0 10px 0;
+  color: #2c3e50;
+}
+
+.product-info-card p {
+  margin: 5px 0;
+  color: #555;
+}
+
+.movements-list h4 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+/* Input deshabilitado para stock */
+.disabled-input {
+  background: #ecf0f1;
+  color: #7f8c8d;
+  cursor: not-allowed;
+}
+
+.disabled-note {
+  color: #7f8c8d;
+  font-style: italic;
+  margin-top: 5px;
+  display: block;
+}
+
+/* Estilos para la tabla de movimientos en el modal */
+.movements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.movements-table th {
+  background: #34495e;
+  color: white;
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.movements-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.movements-table tr:hover {
+  background: #f8f9fa;
+}
+
+.no-movements {
+  text-align: center;
+  padding: 40px;
+  color: #7f8c8d;
+}
+
+.no-movements p {
+  margin: 10px 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .large-modal {
+    width: 95%;
+    padding: 20px;
+  }
+  
+  .movements-table {
+    font-size: 0.8em;
+  }
+  
+  .movements-table th,
+  .movements-table td {
+    padding: 8px 4px;
+  }
+}
   }
