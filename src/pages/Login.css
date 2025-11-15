@@ -1,4 +1,4 @@
-/* Login.css - Diseño elegante y moderno */
+/* Login.css - Diseño elegante y moderno (VERSIÓN CORREGIDA) */
 
 .login-container {
     min-height: 100vh;
@@ -110,6 +110,19 @@
     font-weight: 600;
   }
   
+  /* Mensaje de error elegante */
+  .error-message {
+    background: #fde8e6;
+    color: #c0392b;
+    padding: 12px 15px;
+    border-radius: 10px;
+    border: 1px solid #e74c3c;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.1);
+  }
+  
   .login-form {
     margin: 30px 0;
   }
@@ -195,23 +208,56 @@
     100% { transform: rotate(360deg); }
   }
   
-  .demo-info {
-    background: #e8f5e8;
-    border: 1px solid #27ae60;
+  /* Auth switch elegante */
+  .auth-switch {
+    text-align: center;
+    margin: 25px 0;
+    padding: 0;
+  }
+  
+  .auth-switch p {
+    margin: 0;
+    color: #7f8c8d;
+    font-size: 0.95em;
+  }
+  
+  .switch-btn {
+    background: none;
+    border: none;
+    color: #3498db;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: underline;
+    font-size: 0.95em;
+  }
+  
+  .switch-btn:hover {
+    color: #2980b9;
+  }
+  
+  .switch-btn:disabled {
+    color: #bdc3c7;
+    cursor: not-allowed;
+  }
+  
+  /* Información de seguridad integrada */
+  .security-info {
+    background: #e8f4fd;
+    border: 1px solid #3498db;
     border-radius: 10px;
-    padding: 15px;
+    padding: 12px 15px;
     margin: 20px 0;
     text-align: center;
   }
   
-  .demo-info p {
-    margin: 5px 0;
+  .security-info p {
+    margin: 0;
     color: #2c3e50;
-    font-size: 0.9em;
+    font-size: 0.85em;
   }
   
-  .demo-info strong {
-    color: #27ae60;
+  .security-info strong {
+    color: #3498db;
   }
   
   .login-footer {

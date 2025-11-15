@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { auth } from './firebase/config';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import './App.css';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -14,17 +16,41 @@ function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const handleLogin = (username) => {
+  // Verificar estado de autenticación al cargar
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Usuario logueado
+        setIsLoggedIn(true);
+        setCurrentUser(user.email);
+      } else {
+        // Usuario no logueado
+        setIsLoggedIn(false);
+        setCurrentUser('');
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = (userEmail) => {
     setIsLoggedIn(true);
-    setCurrentUser(username);
+    setCurrentUser(userEmail);
     setCurrentSection('dashboard');
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser('');
-    setCurrentSection('dashboard');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsLoggedIn(false);
+      setCurrentUser('');
+      setCurrentSection('dashboard');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
   };
 
   const handleNavigate = (section) => {
@@ -57,6 +83,16 @@ function App() {
         return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
     }
   };
+
+  // Mostrar loading mientras verifica autenticación
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner-large"></div>
+        <p>Cargando sistema...</p>
+      </div>
+    );
+  }
 
   // Si no está logueado, mostrar login
   if (!isLoggedIn) {
