@@ -18,7 +18,8 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
-    price: '',
+    salePrice: '', // Precio de venta
+    purchasePrice: '', // Precio de compra base
     stock: '',
     category: 'ferreteria',
     code: '',
@@ -33,7 +34,6 @@ const Products = () => {
   const [notification, setNotification] = useState(null);
 
   // Cargar productos
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadProducts();
   }, []);
@@ -104,14 +104,23 @@ const Products = () => {
     try {
       await addDoc(collection(db, 'products'), {
         name: newProduct.name,
-        price: parseFloat(newProduct.price),
+        salePrice: parseFloat(newProduct.salePrice), // Precio de venta
+        purchasePrice: parseFloat(newProduct.purchasePrice), // Precio de compra base
+        lastPurchasePrice: parseFloat(newProduct.purchasePrice), // Último precio de compra
         stock: parseInt(newProduct.stock),
         category: newProduct.category,
         code: newProduct.code,
         createdAt: new Date()
       });
       showNotification('✅ Producto agregado correctamente', 'success');
-      setNewProduct({ name: '', price: '', stock: '', category: 'ferreteria', code: '' });
+      setNewProduct({ 
+        name: '', 
+        salePrice: '', 
+        purchasePrice: '', 
+        stock: '', 
+        category: 'ferreteria', 
+        code: '' 
+      });
       setShowAddForm(false);
       loadProducts();
     } catch (error) {
@@ -120,20 +129,17 @@ const Products = () => {
     }
   };
 
-  // ELIMINADO: Función de actualización manual de stock
-  // Ya no se permite editar stock manualmente
-
-  // Editar producto (sin editar stock)
+  // Editar producto (solo datos básicos, no stock ni precios de compra)
   const handleEditProduct = async (e) => {
     e.preventDefault();
     showNotification('Actualizando producto...', 'loading');
     try {
       await updateDoc(doc(db, 'products', editingProduct.id), {
         name: editingProduct.name,
-        price: parseFloat(editingProduct.price),
+        salePrice: parseFloat(editingProduct.salePrice), // Solo precio de venta editable
         category: editingProduct.category,
         code: editingProduct.code
-        // NOTA: No actualizamos el stock aquí
+        // NO actualizamos purchasePrice ni lastPurchasePrice aquí
       });
       showNotification('✅ Producto actualizado correctamente', 'success');
       setShowEditForm(false);
@@ -306,7 +312,8 @@ const Products = () => {
                       <thead>
                         <tr>
                           <th>Producto</th>
-                          <th>Precio</th>
+                          <th>Precio Venta</th>
+                          <th>Último Precio Compra</th>
                           <th>Stock</th>
                           <th>Categoría</th>
                           <th>Acciones</th>
@@ -322,7 +329,10 @@ const Products = () => {
                               <strong>{product.name}</strong>
                               {product.code && <div className="product-code">Código: {product.code}</div>}
                             </td>
-                            <td className="amount">{formatCurrency(product.price)}</td>
+                            <td className="amount">{formatCurrency(product.salePrice || product.price)}</td>
+                            <td className="amount purchase-price">
+                              {formatCurrency(product.lastPurchasePrice || product.purchasePrice || product.price)}
+                            </td>
                             <td className={`stock ${product.stock === 0 ? 'critical' : product.stock <= 10 ? 'warning' : 'good'}`}>
                               {product.stock} unidades
                             </td>
@@ -380,7 +390,8 @@ const Products = () => {
                         <tr>
                           <th>Producto</th>
                           <th>Stock Actual</th>
-                          <th>Precio</th>
+                          <th>Precio Venta</th>
+                          <th>Último Compra</th>
                           <th>Categoría</th>
                           <th>Acción</th>
                         </tr>
@@ -403,7 +414,10 @@ const Products = () => {
                                 {product.stock === 0 && <span className="stock-alert">🔄 AGOTADO!</span>}
                                 {product.stock > 0 && product.stock <= 5 && <span className="stock-alert">⚠️ Muy bajo!</span>}
                               </td>
-                              <td className="amount">{formatCurrency(product.price)}</td>
+                              <td className="amount">{formatCurrency(product.salePrice || product.price)}</td>
+                              <td className="amount purchase-price">
+                                {formatCurrency(product.lastPurchasePrice || product.purchasePrice || product.price)}
+                              </td>
                               <td>
                                 <span className={`category-tag ${product.category}`}>
                                   {product.category}
@@ -474,12 +488,23 @@ const Products = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Precio:</label>
+                  <label>Precio de Venta:</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                    value={newProduct.salePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, salePrice: e.target.value })}
+                    required
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Precio de Compra Base:</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newProduct.purchasePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, purchasePrice: e.target.value })}
                     required
                     placeholder="0.00"
                   />
@@ -523,7 +548,14 @@ const Products = () => {
                     className="btn-secondary"
                     onClick={() => {
                       setShowAddForm(false);
-                      setNewProduct({ name: '', price: '', stock: '', category: 'ferreteria', code: '' });
+                      setNewProduct({ 
+                        name: '', 
+                        salePrice: '', 
+                        purchasePrice: '', 
+                        stock: '', 
+                        category: 'ferreteria', 
+                        code: '' 
+                      });
                     }}
                   >
                     ❌ Cancelar
@@ -550,14 +582,28 @@ const Products = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Precio:</label>
+                  <label>Precio de Venta:</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={editingProduct.price}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                    value={editingProduct.salePrice || editingProduct.price}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, salePrice: e.target.value })}
                     required
                   />
+                </div>
+                <div className="form-group">
+                  <label>Último Precio de Compra:</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingProduct.lastPurchasePrice || editingProduct.purchasePrice || editingProduct.price}
+                    disabled
+                    className="disabled-input"
+                    title="El precio de compra solo se actualiza automáticamente con las compras"
+                  />
+                  <small className="disabled-note">
+                    ⓘ El precio de compra se actualiza automáticamente con cada compra
+                  </small>
                 </div>
                 <div className="form-group">
                   <label>Stock Actual:</label>
@@ -635,7 +681,8 @@ const Products = () => {
                   <h4>Información del Producto</h4>
                   <p><strong>Nombre:</strong> {selectedProductForMovements.name}</p>
                   <p><strong>Stock Actual:</strong> {selectedProductForMovements.stock} unidades</p>
-                  <p><strong>Precio:</strong> {formatCurrency(selectedProductForMovements.price)}</p>
+                  <p><strong>Precio Venta:</strong> {formatCurrency(selectedProductForMovements.salePrice || selectedProductForMovements.price)}</p>
+                  <p><strong>Último Compra:</strong> {formatCurrency(selectedProductForMovements.lastPurchasePrice || selectedProductForMovements.purchasePrice || selectedProductForMovements.price)}</p>
                   {selectedProductForMovements.code && (
                     <p><strong>Código:</strong> {selectedProductForMovements.code}</p>
                   )}
@@ -651,6 +698,7 @@ const Products = () => {
                         <tr>
                           <th>Fecha</th>
                           <th>Tipo</th>
+                          <th>Precio Unitario</th>
                           <th>Stock Anterior</th>
                           <th>Cantidad</th>
                           <th>Stock Actual</th>
@@ -667,6 +715,7 @@ const Products = () => {
                                 {movement.tipo === 'compra' ? '📥 Compra' : '📤 Venta'}
                               </span>
                             </td>
+                            <td className="amount">{formatCurrency(movement.precioUnitario)}</td>
                             <td className="stock-number">{movement.stockAnterior}</td>
                             <td className={`quantity ${movement.tipo}`}>
                               {movement.tipo === 'compra' ? '+' : '-'}{movement.cantidad}

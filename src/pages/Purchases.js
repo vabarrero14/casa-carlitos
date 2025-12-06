@@ -1,43 +1,79 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import {
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  doc
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  updateDoc, 
+  doc, 
+  query, 
+  orderBy,
+  where 
 } from 'firebase/firestore';
+import Notification from '../components/Notification';
 import './Purchases.css';
 
 const Purchases = () => {
-  const [activeSection, setActiveSection] = useState('newPurchase');
   const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [filteredPurchases, setFilteredPurchases] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState('newPurchase');
+  
+  // Estados para nueva compra
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const [purchaseItems, setPurchaseItems] = useState([]);
+  const [searchProduct, setSearchProduct] = useState('');
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [filteredSuppliers, setFilteredSuppliers] = useState([]);
-  const [productSearch, setProductSearch] = useState('');
-  const [supplierSearch, setSupplierSearch] = useState('');
-  const [purchaseItems, setPurchaseItems] = useState([]);
-  const [purchaseInProgress, setPurchaseInProgress] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState(null);
-  const [showSupplierSearch, setShowSupplierSearch] = useState(false);
   const [purchaseNumber, setPurchaseNumber] = useState('');
-  const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // Nuevos estados para historial
-  const [purchasesHistory, setPurchasesHistory] = useState([]);
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Cargar productos y proveedores
+  // Estado para notificaciones
+  const [notification, setNotification] = useState(null);
+
+  // Cargar datos iniciales
   useEffect(() => {
     loadProducts();
     loadSuppliers();
-    loadPurchasesHistory();
+    loadPurchases();
     generatePurchaseNumber();
   }, []);
 
+  // Filtrar productos para búsqueda
+  useEffect(() => {
+    if (searchProduct) {
+      const filtered = products.filter(product =>
+        product.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
+        (product.code && product.code.toLowerCase().includes(searchProduct.toLowerCase()))
+      );
+      setFilteredProducts(filtered);
+    } else {
+      setFilteredProducts(products);
+    }
+  }, [searchProduct, products]);
+
+  // Filtrar proveedores para búsqueda en modal
+  useEffect(() => {
+    if (supplierSearch) {
+      const filtered = suppliers.filter(supplier =>
+        supplier.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+        (supplier.ruc && supplier.ruc.includes(supplierSearch))
+      );
+      setFilteredSuppliers(filtered);
+    } else {
+      setFilteredSuppliers(suppliers);
+    }
+  }, [supplierSearch, suppliers]);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
   const loadProducts = async () => {
-    setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'products'));
       const productsList = [];
@@ -48,9 +84,8 @@ const Purchases = () => {
       setFilteredProducts(productsList);
     } catch (error) {
       console.error('Error cargando productos:', error);
-      alert('❌ Error al cargar productos');
+      showNotification('Error al cargar productos', 'error');
     }
-    setLoading(false);
   };
 
   const loadSuppliers = async () => {
@@ -64,24 +99,32 @@ const Purchases = () => {
       setFilteredSuppliers(suppliersList);
     } catch (error) {
       console.error('Error cargando proveedores:', error);
+      showNotification('Error al cargando proveedores', 'error');
     }
   };
 
-  // Cargar historial de compras
-  const loadPurchasesHistory = async () => {
+  const loadPurchases = async () => {
+    setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, 'purchases'));
+      const q = query(collection(db, 'purchases'), orderBy('fecha', 'desc'));
+      const querySnapshot = await getDocs(q);
       const purchasesList = [];
       querySnapshot.forEach((doc) => {
-        purchasesList.push({ id: doc.id, ...doc.data() });
+        const purchaseData = doc.data();
+        purchasesList.push({ 
+          id: doc.id, 
+          ...purchaseData,
+          // Asegurar que items esté definido
+          items: purchaseData.items || []
+        });
       });
-      
-      // Ordenar por fecha más reciente
-      purchasesList.sort((a, b) => b.createdAt?.toDate() - a.createdAt?.toDate());
-      setPurchasesHistory(purchasesList);
+      setPurchases(purchasesList);
+      setFilteredPurchases(purchasesList);
     } catch (error) {
-      console.error('Error cargando historial de compras:', error);
+      console.error('Error cargando compras:', error);
+      showNotification('Error al cargar compras', 'error');
     }
+    setLoading(false);
   };
 
   const generatePurchaseNumber = () => {
@@ -90,119 +133,149 @@ const Purchases = () => {
     setPurchaseNumber(`COMP-${timestamp}-${random}`);
   };
 
-  // Filtrar productos
-  useEffect(() => {
-    if (productSearch) {
-      const filtered = products.filter(product =>
-        product.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
-        product.code?.toLowerCase().includes(productSearch.toLowerCase())
-      );
-      setFilteredProducts(filtered);
-    } else {
-      setFilteredProducts(products);
-    }
-  }, [productSearch, products]);
-
-  // Filtrar proveedores - CORREGIDO CON ruc
-  useEffect(() => {
-    if (supplierSearch) {
-      const filtered = suppliers.filter(supplier =>
-        supplier.name?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-        supplier.contactName?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-        supplier.ruc?.includes(supplierSearch)
-      );
-      setFilteredSuppliers(filtered);
-    } else {
-      setFilteredSuppliers(suppliers);
-    }
-  }, [supplierSearch, suppliers]);
-
-  // Iniciar nueva compra
-  const startNewPurchase = () => {
-    setPurchaseInProgress(true);
-    setPurchaseItems([]);
-    setSelectedSupplier(null);
-    setProductSearch('');
-    setSupplierSearch('');
-    setNotes('');
-    generatePurchaseNumber();
-  };
-
-  // Seleccionar proveedor
-  const selectSupplier = (supplier) => {
-    setSelectedSupplier(supplier);
-    setShowSupplierSearch(false);
-    setSupplierSearch('');
-  };
-
-  // Remover proveedor
-  const removeSupplier = () => {
-    setSelectedSupplier(null);
-  };
-
-  // Agregar producto al carrito de compra
-  const addToPurchase = (product) => {
-    const existingItem = purchaseItems.find(item => item.id === product.id);
-
+  // Agregar producto a la compra
+  const addProductToPurchase = (product) => {
+    const existingItem = purchaseItems.find(item => item.productId === product.id);
+    
     if (existingItem) {
-      // Si ya está en el carrito, aumentar cantidad
-      setPurchaseItems(purchaseItems.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
+      // Si ya existe, aumentar cantidad
+      setPurchaseItems(prev => prev.map(item =>
+        item.productId === product.id
+          ? { ...item, cantidad: item.cantidad + 1 }
           : item
       ));
     } else {
-      // Si no está en el carrito, agregarlo
-      setPurchaseItems([...purchaseItems, {
-        ...product,
-        quantity: 1,
-        purchasePrice: product.price || 0
-      }]);
+      // Agregar nuevo producto con precio de compra editable
+      const newItem = {
+        productId: product.id,
+        productName: product.name,
+        productCode: product.code,
+        cantidad: 1,
+        precioUnitario: product.lastPurchasePrice || product.purchasePrice || product.price,
+        stockActual: product.stock
+      };
+      setPurchaseItems(prev => [...prev, newItem]);
     }
   };
 
-  // Remover producto del carrito
-  const removeFromPurchase = (productId) => {
-    setPurchaseItems(purchaseItems.filter(item => item.id !== productId));
+  // Actualizar cantidad de un producto
+  const updateItemQuantity = (productId, newQuantity) => {
+    if (newQuantity < 1) return;
+    
+    setPurchaseItems(prev => prev.map(item =>
+      item.productId === productId
+        ? { ...item, cantidad: parseInt(newQuantity) }
+        : item
+    ));
   };
 
-  // Actualizar cantidad en carrito
-  const updatePurchaseQuantity = (productId, newQuantity) => {
-    if (newQuantity < 1) {
-      removeFromPurchase(productId);
+  // Actualizar precio de compra de un producto
+  const updateItemPrice = (productId, newPrice) => {
+    if (newPrice < 0) return;
+    
+    setPurchaseItems(prev => prev.map(item =>
+      item.productId === productId
+        ? { ...item, precioUnitario: parseFloat(newPrice) }
+        : item
+    ));
+  };
+
+  // Remover producto de la compra
+  const removeItemFromPurchase = (productId) => {
+    setPurchaseItems(prev => prev.filter(item => item.productId !== productId));
+  };
+
+  // Calcular total de la compra
+  const calculateTotal = () => {
+    return purchaseItems.reduce((total, item) => {
+      return total + (item.cantidad * item.precioUnitario);
+    }, 0);
+  };
+
+  // Seleccionar proveedor desde modal
+  const selectSupplier = (supplier) => {
+    setSelectedSupplier(supplier);
+    setShowSupplierModal(false);
+    setSupplierSearch('');
+  };
+
+  // Registrar compra
+  const registerPurchase = async () => {
+    if (!selectedSupplier) {
+      showNotification('Selecciona un proveedor', 'error');
       return;
     }
 
-    setPurchaseItems(purchaseItems.map(item =>
-      item.id === productId
-        ? { ...item, quantity: parseInt(newQuantity) }
-        : item
-    ));
-  };
+    if (purchaseItems.length === 0) {
+      showNotification('Agrega productos a la compra', 'error');
+      return;
+    }
 
-  // Actualizar precio de compra
-  const updatePurchasePrice = (productId, newPrice) => {
-    setPurchaseItems(purchaseItems.map(item =>
-      item.id === productId
-        ? { ...item, purchasePrice: parseFloat(newPrice) || 0 }
-        : item
-    ));
-  };
+    setLoading(true);
+    showNotification('Registrando compra...', 'loading');
 
-  // Calcular totales
-  const subtotal = purchaseItems.reduce((sum, item) => 
-    sum + ((item.purchasePrice || 0) * item.quantity), 0
-  );
-  const total = subtotal;
+    try {
+      const total = calculateTotal();
 
-  // Formatear fecha para el historial
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '-';
-    const date = timestamp.toDate();
-    return date.toLocaleDateString('es-ES') + ' ' + date.toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+      // 1. Crear documento de compra
+      const purchaseData = {
+        numero: purchaseNumber,
+        proveedor: selectedSupplier.name,
+        proveedorId: selectedSupplier.id,
+        fecha: new Date(purchaseDate),
+        items: purchaseItems,
+        total: total,
+        createdAt: new Date()
+      };
+
+      const purchaseDoc = await addDoc(collection(db, 'purchases'), purchaseData);
+
+      // 2. Actualizar stock y último precio de compra de cada producto
+      for (const item of purchaseItems) {
+        const productRef = doc(db, 'products', item.productId);
+        const product = products.find(p => p.id === item.productId);
+        
+        const nuevoStock = product.stock + item.cantidad;
+        
+        await updateDoc(productRef, {
+          stock: nuevoStock,
+          lastPurchasePrice: item.precioUnitario
+        });
+
+        // 3. Registrar movimiento de stock
+        await addDoc(collection(db, 'stock_movements'), {
+          productId: item.productId,
+          productName: item.productName,
+          tipo: 'compra',
+          cantidad: item.cantidad,
+          stockAnterior: product.stock,
+          stockActual: nuevoStock,
+          precioUnitario: item.precioUnitario,
+          totalMovimiento: item.cantidad * item.precioUnitario,
+          referencia: purchaseNumber,
+          proveedor: selectedSupplier.name,
+          fecha: new Date()
+        });
+      }
+
+      showNotification('✅ Compra registrada correctamente', 'success');
+      
+      // Limpiar formulario
+      setPurchaseItems([]);
+      setSelectedSupplier(null);
+      generatePurchaseNumber();
+      setPurchaseDate(new Date().toISOString().split('T')[0]);
+      
+      // Recargar datos
+      loadProducts();
+      loadPurchases();
+      
+    } catch (error) {
+      console.error('Error registrando compra:', error);
+      showNotification('❌ Error al registrar compra', 'error');
+    }
+    
+    setLoading(false);
   };
 
   // Formatear moneda
@@ -213,137 +286,33 @@ const Purchases = () => {
     }).format(amount);
   };
 
-  // Finalizar compra - VERSIÓN CON REGISTRO DE MOVIMIENTOS
-  const completePurchase = async () => {
-    if (purchaseItems.length === 0) {
-      alert('❌ No hay productos en la compra');
-      return;
-    }
-
-    if (!selectedSupplier) {
-      alert('❌ Debe seleccionar un proveedor');
-      return;
-    }
-
-    try {
-      // 1. Guardar la compra en Firebase
-      const purchaseData = {
-        purchaseNumber,
-        supplier: {
-          id: selectedSupplier.id,
-          name: selectedSupplier.name || 'Proveedor sin nombre',
-          ruc: selectedSupplier.ruc || 'Sin RUC',
-          contactName: selectedSupplier.contactName || '',
-          phone: selectedSupplier.phone || '',
-          email: selectedSupplier.email || '',
-          address: selectedSupplier.address || ''
-        },
-        items: purchaseItems.map(item => ({
-          id: item.id,
-          name: item.name || 'Producto sin nombre',
-          code: item.code || '',
-          quantity: item.quantity,
-          purchasePrice: item.purchasePrice || 0,
-          total: (item.purchasePrice || 0) * item.quantity
-        })),
-        subtotal,
-        total,
-        notes: notes || '',
-        status: 'completed',
-        createdAt: new Date()
-      };
-
-      const purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseData);
-
-      // 2. Actualizar stock y precio de costo de cada producto + REGISTRAR MOVIMIENTOS
-      const updatePromises = purchaseItems.map(async (item) => {
-        const currentProduct = products.find(p => p.id === item.id);
-        const stockAnterior = currentProduct?.stock || 0;
-        const newStock = stockAnterior + item.quantity;
-        
-        // Actualizar stock del producto
-        await updateDoc(doc(db, 'products', item.id), {
-          stock: newStock,
-          costPrice: item.purchasePrice || 0
-        });
-
-        // REGISTRAR MOVIMIENTO DE COMPRA
-        await addDoc(collection(db, 'stock_movements'), {
-          productId: item.id,
-          productName: item.name,
-          fecha: new Date(),
-          tipo: "compra",
-          stockAnterior: stockAnterior,
-          cantidad: item.quantity,
-          stockActual: newStock,
-          referencia: purchaseNumber,
-          proveedor: selectedSupplier.name,
-          precioCompra: item.purchasePrice || 0,
-          totalMovimiento: (item.purchasePrice || 0) * item.quantity,
-          usuario: "Sistema",
-          compraId: purchaseDocRef.id
-        });
-      });
-
-      await Promise.all(updatePromises);
-
-      // 3. Mostrar resumen y limpiar
-      alert(`✅ Compra registrada exitosamente!\nProveedor: ${selectedSupplier.name}\nTotal: $${total.toFixed(2)}`);
-
-      setPurchaseItems([]);
-      setSelectedSupplier(null);
-      setPurchaseInProgress(false);
-      setNotes('');
-      loadProducts(); // Recargar productos con nuevo stock
-      loadPurchasesHistory(); // Actualizar historial
-
-    } catch (error) {
-      console.error('Error completando compra:', error);
-      alert('❌ Error al registrar la compra: ' + error.message);
-    }
+  // Formatear fecha
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '--';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString('es-ES');
   };
-
-  // Estadísticas
-  const todayPurchases = purchasesHistory.filter(purchase => 
-    purchase.createdAt?.toDate().toDateString() === new Date().toDateString()
-  );
-  const todayTotal = todayPurchases.reduce((sum, purchase) => sum + purchase.total, 0);
-  const totalPurchases = purchasesHistory.length;
-  const totalSpent = purchasesHistory.reduce((sum, purchase) => sum + purchase.total, 0);
 
   return (
     <div className="page">
-      <h2>🛒 Módulo de Compras</h2>
+      <h2>🛒 Compras a Proveedores</h2>
 
-      {/* Navegación tipo Sales */}
+      {/* Navegación */}
       <div className="reports-nav">
-        <button 
+        <button
           className={`report-btn ${activeSection === 'newPurchase' ? 'active' : ''}`}
           onClick={() => setActiveSection('newPurchase')}
         >
-          🛒 Nueva Compra
+          ➕ Nueva Compra
         </button>
-        <button 
-          className={`report-btn ${activeSection === 'purchasesHistory' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveSection('purchasesHistory');
-            loadPurchasesHistory();
-          }}
+        <button
+          className={`report-btn ${activeSection === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveSection('history')}
         >
-          📜 Historial
-        </button>
-        <button 
-          className={`report-btn ${activeSection === 'todayPurchases' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveSection('todayPurchases');
-            loadPurchasesHistory();
-          }}
-        >
-          📅 Hoy
+          📋 Historial
         </button>
       </div>
 
-      {/* Contenido principal */}
       <div className="reports-content">
         {loading ? (
           <div className="loading">
@@ -354,199 +323,157 @@ const Purchases = () => {
           <>
             {/* Sección: Nueva Compra */}
             {activeSection === 'newPurchase' && (
-              <div className="report-section">
-                <h3>🛒 Nueva Compra</h3>
-                
-                <div className="summary-cards">
-                  <div className="summary-card today-purchases">
-                    <h4>Compras Hoy</h4>
-                    <p className="amount">{formatCurrency(todayTotal)}</p>
+              <div className="purchase-section">
+                <h3>➕ Nueva Compra</h3>
+
+                {/* Información de la compra */}
+                <div className="purchase-info">
+                  <div className="info-group">
+                    <label>Número de Compra:</label>
+                    <span className="purchase-number">{purchaseNumber}</span>
                   </div>
-                  <div className="summary-card total-purchases">
-                    <h4>Total Compras</h4>
-                    <p className="amount">{totalPurchases}</p>
+                  <div className="info-group">
+                    <label>Fecha:</label>
+                    <input
+                      type="date"
+                      value={purchaseDate}
+                      onChange={(e) => setPurchaseDate(e.target.value)}
+                      className="date-input"
+                    />
                   </div>
-                  <div className="summary-card total-spent">
-                    <h4>Total Gastado</h4>
-                    <p className="amount">{formatCurrency(totalSpent)}</p>
+                  <div className="info-group">
+                    <label>Proveedor:</label>
+                    <div className="supplier-selection">
+                      {selectedSupplier ? (
+                        <div className="selected-supplier">
+                          <span>{selectedSupplier.name}</span>
+                          {selectedSupplier.ruc && <span className="supplier-ruc">RUC: {selectedSupplier.ruc}</span>}
+                          <button 
+                            onClick={() => setSelectedSupplier(null)}
+                            className="btn-change-supplier"
+                          >
+                            Cambiar
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setShowSupplierModal(true)}
+                          className="btn-select-supplier"
+                        >
+                          🚚 Seleccionar Proveedor
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Proceso de compra */}
-                {!purchaseInProgress ? (
-                  <div className="start-purchase-container">
-                    <button 
-                      onClick={startNewPurchase}
-                      className="btn-primary big-add-btn"
-                    >
-                      🛒 Iniciar Nueva Compra
-                    </button>
+                {/* Búsqueda y lista de productos */}
+                <div className="product-selection">
+                  <h4>📦 Seleccionar Productos</h4>
+                  <div className="search-box">
+                    <input
+                      type="text"
+                      placeholder="🔍 Buscar producto por nombre o código..."
+                      value={searchProduct}
+                      onChange={(e) => setSearchProduct(e.target.value)}
+                      className="search-input"
+                    />
                   </div>
-                ) : (
-                  <div className="purchase-process">
-                    <div className="purchase-header">
-                      <h3>📦 Compra en Proceso</h3>
-                      <div className="purchase-info">
-                        <span><strong>N°:</strong> {purchaseNumber}</span>
-                      </div>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => setPurchaseInProgress(false)}
+                  
+                  <div className="products-grid">
+                    {filteredProducts.map(product => (
+                      <div
+                        key={product.id}
+                        className="product-card"
+                        onClick={() => addProductToPurchase(product)}
                       >
-                        ❌ Cancelar Compra
-                      </button>
-                    </div>
-
-                    {/* Información del proveedor */}
-                    <div className="supplier-section">
-                      <div className="supplier-display">
-                        {selectedSupplier ? (
-                          <div className="selected-supplier">
-                            <span>🏢 Proveedor: <strong>{selectedSupplier.name}</strong> ({selectedSupplier.ruc || 'Sin RUC'})</span>
-                            <button 
-                              onClick={removeSupplier}
-                              className="btn-small btn-remove"
-                            >
-                              ❌
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="no-supplier">
-                            <span>🏢 Sin proveedor seleccionado</span>
-                            <button 
-                              onClick={() => setShowSupplierSearch(true)}
-                              className="btn-small btn-primary"
-                            >
-                              🔍 Buscar Proveedor
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="purchase-layout">
-                      {/* Columna izquierda - Búsqueda y productos */}
-                      <div className="products-column">
-                        <div className="search-section">
-                          <input
-                            type="text"
-                            placeholder="🔍 Buscar producto por nombre o código..."
-                            value={productSearch}
-                            onChange={(e) => setProductSearch(e.target.value)}
-                            className="search-input"
-                          />
+                        <div className="product-header">
+                          <span className="product-name">{product.name}</span>
+                          {product.code && <span className="product-code">({product.code})</span>}
                         </div>
+                        <div className="product-details">
+                          <span className="product-stock">Stock: {product.stock}</span>
+                          <span className="product-price">
+                            Últ. compra: {formatCurrency(product.lastPurchasePrice || product.purchasePrice || product.price)}
+                          </span>
+                        </div>
+                        <div className="product-action">
+                          <button className="btn-add">➕ Agregar</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                        <div className="products-grid">
-                          {filteredProducts.map((product) => (
-                            <div 
-                              key={product.id}
-                              className="product-item"
-                              onClick={() => addToPurchase(product)}
-                            >
-                              <h4>{product.name}</h4>
-                              <p>💰 ${product.price}</p>
-                              <p>📦 Stock: {product.stock || 0}</p>
-                              {product.code && <p>🔢 Código: {product.code}</p>}
+                {/* Lista de productos en la compra */}
+                {purchaseItems.length > 0 && (
+                  <div className="purchase-items">
+                    <h4>🛒 Productos en la Compra</h4>
+                    <div className="items-list">
+                      {purchaseItems.map((item, index) => (
+                        <div key={item.productId} className="purchase-item">
+                          <div className="item-info">
+                            <span className="item-name">{item.productName}</span>
+                            {item.productCode && <span className="item-code">({item.productCode})</span>}
+                            <span className="item-stock">Stock actual: {item.stockActual}</span>
+                          </div>
+                          
+                          <div className="item-controls">
+                            <div className="quantity-control">
+                              <label>Cantidad:</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.cantidad}
+                                onChange={(e) => updateItemQuantity(item.productId, e.target.value)}
+                                className="quantity-input"
+                              />
                             </div>
-                          ))}
+                            
+                            <div className="price-control">
+                              <label>Precio Compra:</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.precioUnitario}
+                                onChange={(e) => updateItemPrice(item.productId, e.target.value)}
+                                className="price-input"
+                              />
+                            </div>
+                            
+                            <div className="item-subtotal">
+                              <label>Subtotal:</label>
+                              <span className="subtotal-amount">
+                                {formatCurrency(item.cantidad * item.precioUnitario)}
+                              </span>
+                            </div>
+                            
+                            <button
+                              onClick={() => removeItemFromPurchase(item.productId)}
+                              className="btn-remove"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                    </div>
 
-                      {/* Columna derecha - Detalle de compra */}
-                      <div className="purchase-column">
-                        <div className="purchase-container">
-                          <h4>📋 Detalle de Compra</h4>
+                    {/* Total de la compra */}
+                    <div className="purchase-total">
+                      <h3>Total: {formatCurrency(calculateTotal())}</h3>
+                    </div>
 
-                          {purchaseItems.length === 0 ? (
-                            <p className="empty-purchase">No hay productos en la compra</p>
-                          ) : (
-                            <>
-                              <div className="purchase-items">
-                                {purchaseItems.map((item) => (
-                                  <div key={item.id} className="purchase-item">
-                                    <div className="item-info">
-                                      <span className="item-name">{item.name}</span>
-                                      <span className="item-price">${item.purchasePrice} c/u</span>
-                                    </div>
-                                    <div className="item-controls">
-                                      <button
-                                        onClick={() => updatePurchaseQuantity(item.id, item.quantity - 1)}
-                                        className="qty-btn"
-                                      >
-                                        -
-                                      </button>
-                                      <span className="item-qty">{item.quantity}</span>
-                                      <button
-                                        onClick={() => updatePurchaseQuantity(item.id, item.quantity + 1)}
-                                        className="qty-btn"
-                                      >
-                                        +
-                                      </button>
-                                      <button
-                                        onClick={() => removeFromPurchase(item.id)}
-                                        className="remove-btn"
-                                      >
-                                        🗑️
-                                      </button>
-                                    </div>
-                                    <div className="price-controls">
-                                      <label>Precio Compra:</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={item.purchasePrice}
-                                        onChange={(e) => updatePurchasePrice(item.id, e.target.value)}
-                                        className="price-input"
-                                      />
-                                    </div>
-                                    <div className="item-total">
-                                      ${((item.purchasePrice || 0) * item.quantity).toFixed(2)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              <div className="purchase-totals">
-                                <div className="total-line">
-                                  <span>Subtotal:</span>
-                                  <span>${subtotal.toFixed(2)}</span>
-                                </div>
-                                <div className="total-line grand-total">
-                                  <span>Total:</span>
-                                  <span>${total.toFixed(2)}</span>
-                                </div>
-                              </div>
-
-                              {/* Notas de la compra */}
-                              <div className="purchase-notes">
-                                <label>Notas (opcional):</label>
-                                <textarea
-                                  value={notes}
-                                  onChange={(e) => setNotes(e.target.value)}
-                                  placeholder="Observaciones de la compra..."
-                                  rows="2"
-                                />
-                              </div>
-
-                              <button
-                                onClick={completePurchase}
-                                className="btn-primary complete-purchase-btn"
-                              >
-                                ✅ Registrar Compra
-                              </button>
-                              
-                              <button 
-                                onClick={() => setPurchaseInProgress(false)}
-                                className="btn-secondary"
-                                style={{ marginTop: '10px' }}
-                              >
-                                ❌ Cancelar Compra
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                    {/* Botón de registrar */}
+                    <div className="purchase-actions">
+                      <button
+                        onClick={registerPurchase}
+                        disabled={loading || !selectedSupplier || purchaseItems.length === 0}
+                        className="btn-primary big-btn"
+                      >
+                        ✅ Registrar Compra
+                      </button>
                     </div>
                   </div>
                 )}
@@ -554,15 +481,16 @@ const Purchases = () => {
             )}
 
             {/* Sección: Historial de Compras */}
-            {activeSection === 'purchasesHistory' && (
-              <div className="report-section">
-                <h3>📜 Historial de Compras ({purchasesHistory.length})</h3>
-
-                {purchasesHistory.length > 0 ? (
+            {activeSection === 'history' && (
+              <div className="history-section">
+                <h3>📋 Historial de Compras</h3>
+                
+                {purchases.length > 0 ? (
                   <div className="table-container">
                     <table className="purchases-table">
                       <thead>
                         <tr>
+                          <th>Número</th>
                           <th>Fecha</th>
                           <th>Proveedor</th>
                           <th>Productos</th>
@@ -570,13 +498,19 @@ const Purchases = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {purchasesHistory.map((purchase) => (
+                        {purchases.map(purchase => (
                           <tr key={purchase.id}>
-                            <td>{formatDate(purchase.createdAt)}</td>
-                            <td>{purchase.supplier?.name}</td>
+                            <td className="purchase-number-cell">{purchase.numero}</td>
+                            <td>{formatDate(purchase.fecha)}</td>
+                            <td>{purchase.proveedor}</td>
                             <td>
-                              {purchase.items?.slice(0, 2).map(item => item.name).join(', ')}
-                              {purchase.items?.length > 2 && '...'}
+                              <div className="purchase-items-summary">
+                                {purchase.items && purchase.items.map((item, index) => (
+                                  <div key={index} className="purchase-item-summary">
+                                    {item.productName} - {item.cantidad} x {formatCurrency(item.precioUnitario)}
+                                  </div>
+                                ))}
+                              </div>
                             </td>
                             <td className="amount">{formatCurrency(purchase.total)}</td>
                           </tr>
@@ -589,111 +523,70 @@ const Purchases = () => {
                 )}
               </div>
             )}
-
-            {/* Sección: Compras de Hoy */}
-            {activeSection === 'todayPurchases' && (
-              <div className="report-section">
-                <h3>📅 Compras de Hoy - {new Date().toLocaleDateString('es-ES')}</h3>
-
-                <div className="summary-cards">
-                  <div className="summary-card today-purchases">
-                    <h4>Total Gastado Hoy</h4>
-                    <p className="amount">{formatCurrency(todayTotal)}</p>
-                  </div>
-                  <div className="summary-card total-transactions">
-                    <h4>Compras Realizadas</h4>
-                    <p className="amount">{todayPurchases.length}</p>
-                  </div>
-                </div>
-
-                {todayPurchases.length > 0 ? (
-                  <div className="table-container">
-                    <table className="purchases-table">
-                      <thead>
-                        <tr>
-                          <th>Hora</th>
-                          <th>Proveedor</th>
-                          <th>Productos</th>
-                          <th>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {todayPurchases.map((purchase) => (
-                          <tr key={purchase.id}>
-                            <td>
-                              {purchase.createdAt?.toDate().toLocaleTimeString('es-ES', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </td>
-                            <td>{purchase.supplier?.name}</td>
-                            <td>
-                              {purchase.items?.slice(0, 2).map(item => item.name).join(', ')}
-                              {purchase.items?.length > 2 && '...'}
-                            </td>
-                            <td className="amount">{formatCurrency(purchase.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="no-data">No hay compras registradas hoy</p>
-                )}
-              </div>
-            )}
           </>
         )}
-      </div>
 
-      {/* Búsqueda de proveedores */}
-      {showSupplierSearch && (
-        <div className="form-overlay">
-          <div className="form-container">
-            <div className="form-header">
-              <h3>🔍 Buscar Proveedor</h3>
-              <button 
-                onClick={() => setShowSupplierSearch(false)}
-                className="btn-close"
-              >
-                ❌ Cerrar
-              </button>
-            </div>
-
-            <div className="supplier-search-actions">
-              <input
-                type="text"
-                placeholder="Buscar por nombre, contacto o RUC..."
-                value={supplierSearch}
-                onChange={(e) => setSupplierSearch(e.target.value)}
-                className="search-input"
-              />
-            </div>
-
-            <div className="suppliers-results">
-              {filteredSuppliers.map((supplier) => (
-                <div 
-                  key={supplier.id}
-                  className="supplier-result-item"
-                  onClick={() => selectSupplier(supplier)}
+        {/* Modal de Selección de Proveedor */}
+        {showSupplierModal && (
+          <div className="form-overlay">
+            <div className="form-container">
+              <div className="form-header">
+                <h3>🚚 Seleccionar Proveedor</h3>
+                <button
+                  onClick={() => {
+                    setShowSupplierModal(false);
+                    setSupplierSearch('');
+                  }}
+                  className="btn-close"
                 >
-                  <div className="supplier-info">
-                    <strong>{supplier.name || 'Proveedor sin nombre'}</strong>
-                    <span>📄 RUC: {supplier.ruc || 'Sin RUC'}</span>
-                    {supplier.contactName && <span>👤 {supplier.contactName}</span>}
-                    {supplier.phone && <span>📞 {supplier.phone}</span>}
-                  </div>
-                  <button className="btn-select">✅ Seleccionar</button>
-                </div>
-              ))}
-              
-              {filteredSuppliers.length === 0 && (
-                <p className="no-results">No se encontraron proveedores</p>
-              )}
+                  ❌
+                </button>
+              </div>
+
+              <div className="search-box">
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar proveedor..."
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  className="search-input"
+                />
+              </div>
+
+              <div className="suppliers-list">
+                {filteredSuppliers.length > 0 ? (
+                  filteredSuppliers.map(supplier => (
+                    <div
+                      key={supplier.id}
+                      className="supplier-item"
+                      onClick={() => selectSupplier(supplier)}
+                    >
+                      <div className="supplier-info">
+                        <strong>{supplier.name}</strong>
+                        {supplier.ruc && <span>RUC: {supplier.ruc}</span>}
+                        {supplier.phone && <span>Tel: {supplier.phone}</span>}
+                      </div>
+                      <button className="btn-select">Seleccionar</button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="no-data">No se encontraron proveedores</p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Notificación */}
+        {notification && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+            duration={notification.type === 'loading' ? 0 : 4000}
+          />
+        )}
+      </div>
     </div>
   );
 };
