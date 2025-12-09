@@ -8,7 +8,9 @@ const Dashboard = ({ onNavigate, currentUser }) => {
     totalProducts: 0,
     todaySales: 0,
     lowStockProducts: 0,
-    todayMovements: 0
+    todayMovements: 0,
+    pendingOrders: 0,
+    approvedOrders: 0
   });
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState('user');
@@ -26,7 +28,6 @@ const Dashboard = ({ onNavigate, currentUser }) => {
         where('email', '==', currentUser)
       );
       const approvedSnapshot = await getDocs(approvedQuery);
-      
       if (!approvedSnapshot.empty) {
         const userData = approvedSnapshot.docs[0].data();
         setUserRole(userData.role || 'user');
@@ -70,12 +71,32 @@ const Dashboard = ({ onNavigate, currentUser }) => {
       const movementsSnapshot = await getDocs(movementsQuery);
       const todayMovements = movementsSnapshot.size;
 
+      // 5. Pedidos pendientes (solo para admin)
+      const pendingOrdersQuery = query(
+        collection(db, 'orders'),
+        where('status', '==', 'pending')
+      );
+      const pendingOrdersSnapshot = await getDocs(pendingOrdersQuery);
+      const pendingOrders = pendingOrdersSnapshot.size;
+
+      // 6. Pedidos aprobados hoy
+      const approvedOrdersQuery = query(
+        collection(db, 'orders'),
+        where('status', '==', 'approved'),
+        where('fechaAprobacion', '>=', today)
+      );
+      const approvedOrdersSnapshot = await getDocs(approvedOrdersQuery);
+      const approvedOrders = approvedOrdersSnapshot.size;
+
       setStats({
         totalProducts,
         todaySales,
         lowStockProducts,
-        todayMovements
+        todayMovements,
+        pendingOrders,
+        approvedOrders
       });
+
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     } finally {
@@ -97,6 +118,20 @@ const Dashboard = ({ onNavigate, currentUser }) => {
       icon: '💰',
       description: 'Realizar ventas y gestionar carrito',
       color: '#27ae60'
+    },
+    {
+      id: 'orders',
+      title: 'Crear Pedidos',
+      icon: '📋',
+      description: 'Crear pedidos para clientes',
+      color: '#9b59b6'
+    },
+    {
+      id: 'myOrders',
+      title: 'Mis Pedidos',
+      icon: '📦',
+      description: 'Ver mis pedidos y estado',
+      color: '#1abc9c'
     },
     {
       id: 'purchases',
@@ -140,11 +175,19 @@ const Dashboard = ({ onNavigate, currentUser }) => {
       description: 'Aprobar o rechazar solicitudes de acceso',
       color: '#e74c3c',
       adminOnly: true
+    },
+    {
+      id: 'orderApproval',
+      title: 'Aprobar Pedidos',
+      icon: '🔄',
+      description: 'Aprobar o rechazar pedidos pendientes',
+      color: '#f39c12',
+      adminOnly: true
     }
   ];
 
   // Filtrar módulos según el rol del usuario
-  const filteredModules = modules.filter(module => 
+  const filteredModules = modules.filter(module =>
     !module.adminOnly || userRole === 'admin'
   );
 
@@ -241,6 +284,28 @@ const Dashboard = ({ onNavigate, currentUser }) => {
               <span className="stat-label">Movimientos hoy</span>
             </div>
           </div>
+          {userRole === 'admin' && (
+            <>
+              <div className="stat-card">
+                <div className="stat-icon">⏳</div>
+                <div className="stat-info">
+                  <span className="stat-value">
+                    {loading ? '...' : stats.pendingOrders}
+                  </span>
+                  <span className="stat-label">Pedidos pendientes</span>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon">✅</div>
+                <div className="stat-info">
+                  <span className="stat-value">
+                    {loading ? '...' : stats.approvedOrders}
+                  </span>
+                  <span className="stat-label">Pedidos aprobados hoy</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

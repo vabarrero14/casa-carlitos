@@ -12,6 +12,9 @@ import Suppliers from './pages/Suppliers';
 import Purchases from './pages/Purchases';
 import StockMovements from './pages/StockMovements';
 import UserApproval from './pages/UserApproval';
+import Orders from './pages/Orders';
+import MyOrders from './pages/MyOrders';
+import OrderApproval from './pages/OrderApproval';
 
 function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
@@ -82,6 +85,12 @@ function App() {
         return <StockMovements />;
       case 'userApproval':
         return <UserApproval currentUser={currentUser} />;
+      case 'orders':
+        return <Orders currentUser={currentUser} />;
+      case 'myOrders':
+        return <MyOrders currentUser={currentUser} />;
+      case 'orderApproval':
+        return <OrderApproval currentUser={currentUser} />;
       default:
         return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
     }
