@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  updateDoc, 
-  doc, 
-  query, 
-  orderBy 
-} from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 import Notification from '../components/Notification';
 import './Sales.css';
 
@@ -16,20 +8,21 @@ const Sales = () => {
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
   const [sales, setSales] = useState([]);
+  const [filteredSales, setFilteredSales] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState('newSale');
-  
+
   // Estados para nueva venta
   const [selectedClient, setSelectedClient] = useState(null);
   const [saleItems, setSaleItems] = useState([]);
   const [searchProduct, setSearchProduct] = useState('');
-  const [showClientModal, setShowClientModal] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
+  const [searchClient, setSearchClient] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [saleNumber, setSaleNumber] = useState('');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
+  const [showClientModal, setShowClientModal] = useState(false);
 
   // Estado para notificaciones
   const [notification, setNotification] = useState(null);
@@ -57,17 +50,24 @@ const Sales = () => {
 
   // Filtrar clientes para búsqueda en modal
   useEffect(() => {
-    if (clientSearch) {
+    if (searchClient) {
       const filtered = clients.filter(client =>
-        client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-        (client.email && client.email.toLowerCase().includes(clientSearch.toLowerCase())) ||
-        (client.phone && client.phone.includes(clientSearch))
+        client.name.toLowerCase().includes(searchClient.toLowerCase()) ||
+        (client.email && client.email.toLowerCase().includes(searchClient.toLowerCase())) ||
+        (client.phone && client.phone.includes(searchClient))
       );
       setFilteredClients(filtered);
     } else {
       setFilteredClients(clients);
     }
-  }, [clientSearch, clients]);
+  }, [searchClient, clients]);
+
+  // Filtrar ventas por fecha
+  useEffect(() => {
+    if (activeSection === 'history') {
+      setFilteredSales(sales);
+    }
+  }, [sales, activeSection]);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -110,14 +110,10 @@ const Sales = () => {
       const querySnapshot = await getDocs(q);
       const salesList = [];
       querySnapshot.forEach((doc) => {
-        const saleData = doc.data();
-        salesList.push({
-          id: doc.id,
-          ...saleData,
-          items: saleData.items || []
-        });
+        salesList.push({ id: doc.id, ...doc.data() });
       });
       setSales(salesList);
+      setFilteredSales(salesList);
     } catch (error) {
       console.error('Error cargando ventas:', error);
       showNotification('Error al cargar ventas', 'error');
@@ -140,14 +136,14 @@ const Sales = () => {
     }
 
     const existingItem = saleItems.find(item => item.productId === product.id);
-    
+
     if (existingItem) {
       // Verificar que no exceda el stock disponible
       if (existingItem.cantidad + 1 > product.stock) {
         showNotification('❌ No hay suficiente stock disponible', 'error');
         return;
       }
-      
+
       // Si ya existe, aumentar cantidad
       setSaleItems(prev => prev.map(item =>
         item.productId === product.id
@@ -173,13 +169,13 @@ const Sales = () => {
   // Actualizar cantidad de un producto
   const updateItemQuantity = (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    
+
     const product = products.find(p => p.id === productId);
     if (parseInt(newQuantity) > product.stock) {
       showNotification('❌ No hay suficiente stock disponible', 'error');
       return;
     }
-    
+
     setSaleItems(prev => prev.map(item =>
       item.productId === productId
         ? { ...item, cantidad: parseInt(newQuantity) }
@@ -190,7 +186,6 @@ const Sales = () => {
   // Actualizar precio de venta de un producto
   const updateItemPrice = (productId, newPrice) => {
     if (newPrice < 0) return;
-    
     setSaleItems(prev => prev.map(item =>
       item.productId === productId
         ? { ...item, precioUnitario: parseFloat(newPrice) }
@@ -221,7 +216,7 @@ const Sales = () => {
   const selectClient = (client) => {
     setSelectedClient(client);
     setShowClientModal(false);
-    setClientSearch('');
+    setSearchClient('');
   };
 
   // Registrar venta
@@ -244,29 +239,30 @@ const Sales = () => {
     showNotification('Registrando venta...', 'loading');
 
     try {
+      const client = selectedClient;
       const total = calculateTotal();
 
       // 1. Crear documento de venta
       const saleData = {
         numero: saleNumber,
-        cliente: selectedClient ? selectedClient.name : 'Cliente general',
-        clienteId: selectedClient ? selectedClient.id : null,
+        cliente: client ? client.name : 'Cliente general',
+        clienteId: client ? client.id : null,
         fecha: new Date(saleDate),
         items: saleItems,
         total: total,
         metodoPago: paymentMethod,
-        createdAt: new Date()
+        createdAt: new Date(),
+        source: 'direct' // Indica que es venta directa (no desde pedido)
       };
 
-      await addDoc(collection(db, 'sales'), saleData);
+      const saleDoc = await addDoc(collection(db, 'sales'), saleData);
 
       // 2. Actualizar stock de cada producto
       for (const item of saleItems) {
         const productRef = doc(db, 'products', item.productId);
         const product = products.find(p => p.id === item.productId);
-        
         const nuevoStock = product.stock - item.cantidad;
-        
+
         await updateDoc(productRef, {
           stock: nuevoStock
         });
@@ -276,13 +272,14 @@ const Sales = () => {
           productId: item.productId,
           productName: item.productName,
           tipo: 'venta',
+          subtipo: 'directa',
           cantidad: item.cantidad,
           stockAnterior: product.stock,
           stockActual: nuevoStock,
           precioUnitario: item.precioUnitario,
           totalMovimiento: item.cantidad * item.precioUnitario,
           referencia: saleNumber,
-          cliente: selectedClient ? selectedClient.name : 'Cliente general',
+          cliente: client ? client.name : 'Cliente general',
           fecha: new Date(),
           precioBase: item.precioBase,
           diferenciaPrecio: item.precioUnitario - item.precioBase
@@ -290,23 +287,24 @@ const Sales = () => {
       }
 
       showNotification('✅ Venta registrada correctamente', 'success');
-      
+
       // Limpiar formulario
       setSaleItems([]);
       setSelectedClient(null);
+      setSearchClient('');
       generateSaleNumber();
       setSaleDate(new Date().toISOString().split('T')[0]);
       setPaymentMethod('efectivo');
-      
+
       // Recargar datos
       loadProducts();
       loadSales();
-      
+
     } catch (error) {
       console.error('Error registrando venta:', error);
       showNotification('❌ Error al registrar venta', 'error');
     }
-    
+
     setLoading(false);
   };
 
@@ -358,12 +356,13 @@ const Sales = () => {
               <div className="sale-section">
                 <h3>➕ Nueva Venta</h3>
 
-                {/* Información de la venta - EXACTAMENTE IGUAL A PURCHASES */}
-                <div className="purchase-info">
+                {/* Información de la venta */}
+                <div className="sale-info">
                   <div className="info-group">
                     <label>Número de Venta:</label>
-                    <span className="purchase-number">{saleNumber}</span>
+                    <span className="sale-number">{saleNumber}</span>
                   </div>
+
                   <div className="info-group">
                     <label>Fecha:</label>
                     <input
@@ -373,16 +372,17 @@ const Sales = () => {
                       className="date-input"
                     />
                   </div>
+
                   <div className="info-group">
                     <label>Cliente:</label>
-                    <div className="supplier-selection">
+                    <div className="client-selection">
                       {selectedClient ? (
-                        <div className="selected-supplier">
+                        <div className="selected-client">
                           <span>{selectedClient.name}</span>
-                          {selectedClient.phone && <span className="supplier-ruc">Tel: {selectedClient.phone}</span>}
+                          {selectedClient.phone && <span className="client-phone">Tel: {selectedClient.phone}</span>}
                           <button
                             onClick={() => setSelectedClient(null)}
-                            className="btn-change-supplier"
+                            className="btn-change-client"
                           >
                             Cambiar
                           </button>
@@ -390,13 +390,14 @@ const Sales = () => {
                       ) : (
                         <button
                           onClick={() => setShowClientModal(true)}
-                          className="btn-select-supplier"
+                          className="btn-select-client"
                         >
                           👤 Seleccionar Cliente
                         </button>
                       )}
                     </div>
                   </div>
+
                   <div className="info-group">
                     <label>Método de Pago:</label>
                     <select
@@ -423,7 +424,7 @@ const Sales = () => {
                       className="search-input"
                     />
                   </div>
-                  
+
                   <div className="products-grid">
                     {filteredProducts.map(product => (
                       <div
@@ -435,6 +436,7 @@ const Sales = () => {
                           <span className="product-name">{product.name}</span>
                           {product.code && <span className="product-code">({product.code})</span>}
                         </div>
+
                         <div className="product-details">
                           <span className={`product-stock ${product.stock <= 0 ? 'stock-zero' : product.stock <= 5 ? 'stock-low' : ''}`}>
                             Stock: {product.stock}
@@ -445,6 +447,7 @@ const Sales = () => {
                             Precio: {formatCurrency(product.salePrice || product.price)}
                           </span>
                         </div>
+
                         <div className="product-action">
                           {product.stock > 0 ? (
                             <button className="btn-add">➕ Agregar</button>
@@ -459,22 +462,23 @@ const Sales = () => {
 
                 {/* Lista de productos en la venta */}
                 {saleItems.length > 0 && (
-                  <div className="purchase-items">
+                  <div className="sale-items">
                     <h4>🛒 Productos en la Venta</h4>
+
                     <div className="items-list">
                       {saleItems.map((item, index) => {
                         const { diferencia, porcentaje } = calculatePriceDifference(item);
                         const tieneDescuento = diferencia < 0;
                         const tieneAumento = diferencia > 0;
-                        
+
                         return (
-                          <div key={item.productId} className="purchase-item">
+                          <div key={item.productId} className="sale-item">
                             <div className="item-info">
                               <span className="item-name">{item.productName}</span>
                               {item.productCode && <span className="item-code">({item.productCode})</span>}
                               <span className="item-stock">Stock disponible: {item.stockDisponible}</span>
                             </div>
-                            
+
                             <div className="item-controls">
                               <div className="quantity-control">
                                 <label>Cantidad:</label>
@@ -487,7 +491,7 @@ const Sales = () => {
                                   className="quantity-input"
                                 />
                               </div>
-                              
+
                               <div className="price-control">
                                 <label>Precio Venta:</label>
                                 <div className="price-input-group">
@@ -509,14 +513,14 @@ const Sales = () => {
                                   )}
                                 </div>
                               </div>
-                              
+
                               <div className="item-subtotal">
                                 <label>Subtotal:</label>
                                 <span className="subtotal-amount">
                                   {formatCurrency(item.cantidad * item.precioUnitario)}
                                 </span>
                               </div>
-                              
+
                               <button
                                 onClick={() => removeItemFromSale(item.productId)}
                                 className="btn-remove"
@@ -530,12 +534,12 @@ const Sales = () => {
                     </div>
 
                     {/* Total de la venta */}
-                    <div className="purchase-total">
+                    <div className="sale-total">
                       <h3>Total: {formatCurrency(calculateTotal())}</h3>
                     </div>
 
                     {/* Botón de registrar */}
-                    <div className="purchase-actions">
+                    <div className="sale-actions">
                       <button
                         onClick={registerSale}
                         disabled={loading || saleItems.length === 0}
@@ -553,10 +557,10 @@ const Sales = () => {
             {activeSection === 'history' && (
               <div className="history-section">
                 <h3>📋 Historial de Ventas</h3>
-                
+
                 {sales.length > 0 ? (
                   <div className="table-container">
-                    <table className="purchases-table">
+                    <table className="sales-table">
                       <thead>
                         <tr>
                           <th>Número</th>
@@ -565,18 +569,34 @@ const Sales = () => {
                           <th>Productos</th>
                           <th>Total</th>
                           <th>Pago</th>
+                          <th>Origen</th>
                         </tr>
                       </thead>
                       <tbody>
                         {sales.map(sale => (
                           <tr key={sale.id}>
-                            <td className="purchase-number-cell">{sale.numero}</td>
+                            <td className="sale-number-cell">
+                              <div className="sale-number-main">{sale.numero}</div>
+                              {sale.orderNumber && (
+                                <div className="order-reference">
+                                  📋 Pedido: {sale.orderNumber}
+                                  {sale.source === 'order' && (
+                                    <span className="source-badge order">Desde pedido</span>
+                                  )}
+                                </div>
+                              )}
+                              {(!sale.source || sale.source === 'direct') && (
+                                <div className="order-reference">
+                                  <span className="source-badge direct">Venta directa</span>
+                                </div>
+                              )}
+                            </td>
                             <td>{formatDate(sale.createdAt)}</td>
                             <td>{sale.cliente}</td>
                             <td>
-                              <div className="purchase-items-summary">
+                              <div className="sale-items-summary">
                                 {sale.items && sale.items.map((item, index) => (
-                                  <div key={index} className="purchase-item-summary">
+                                  <div key={index} className="sale-item-summary">
                                     {item.productName} - {item.cantidad} x {formatCurrency(item.precioUnitario)}
                                     {item.precioUnitario !== item.precioBase && (
                                       <span className="price-note">
@@ -592,6 +612,32 @@ const Sales = () => {
                               <span className={`payment-method ${sale.metodoPago}`}>
                                 {sale.metodoPago}
                               </span>
+                              {sale.aprobadoPor && sale.aprobadoPor !== 'sistema' && (
+                                <div className="approved-by">
+                                  Aprobado por: {sale.aprobadoPor}
+                                </div>
+                              )}
+                              {sale.aprobadoPor === 'sistema' && (
+                                <div className="approved-by">
+                                  Auto-aprobado
+                                </div>
+                              )}
+                            </td>
+                            <td className="source-column">
+                              {sale.source === 'order' ? (
+                                <div className="order-origin">
+                                  <div className="order-badge">📋 Pedido</div>
+                                  {sale.hasPriceChange && (
+                                    <div className="price-change-indicator">
+                                      {sale.priceChangeReason ? 'Con cambios' : 'Sin cambios'}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="direct-origin">
+                                  <div className="direct-badge">💰 Directa</div>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -606,7 +652,7 @@ const Sales = () => {
           </>
         )}
 
-        {/* Modal de Selección de Cliente - EXACTAMENTE IGUAL A PROVEEDORES */}
+        {/* Modal de Selección de Cliente */}
         {showClientModal && (
           <div className="form-overlay">
             <div className="form-container">
@@ -615,31 +661,33 @@ const Sales = () => {
                 <button
                   onClick={() => {
                     setShowClientModal(false);
-                    setClientSearch('');
+                    setSearchClient('');
                   }}
                   className="btn-close"
                 >
                   ❌
                 </button>
               </div>
+
               <div className="search-box">
                 <input
                   type="text"
                   placeholder="🔍 Buscar cliente..."
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
+                  value={searchClient}
+                  onChange={(e) => setSearchClient(e.target.value)}
                   className="search-input"
                 />
               </div>
-              <div className="suppliers-list">
+
+              <div className="clients-list">
                 {filteredClients.length > 0 ? (
                   filteredClients.map(client => (
                     <div
                       key={client.id}
-                      className="supplier-item"
+                      className="client-item"
                       onClick={() => selectClient(client)}
                     >
-                      <div className="supplier-info">
+                      <div className="client-info">
                         <strong>{client.name}</strong>
                         {client.phone && <span>Tel: {client.phone}</span>}
                         {client.email && <span>Email: {client.email}</span>}

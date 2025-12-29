@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import './Dashboard.css';
 
 const Dashboard = ({ onNavigate, currentUser }) => {
@@ -41,68 +41,139 @@ const Dashboard = ({ onNavigate, currentUser }) => {
     try {
       setLoading(true);
 
-      // 1. Total de productos
+      // Obtener fecha de hoy (inicio del día)
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const hoyTimestamp = Timestamp.fromDate(hoy);
+
+      // 1. Total de productos y productos con stock bajo (<= 10)
       const productsSnapshot = await getDocs(collection(db, 'products'));
       const totalProducts = productsSnapshot.size;
-
-      // 2. Productos con stock bajo (<= 10)
       const lowStockProducts = productsSnapshot.docs.filter(doc => {
         const product = doc.data();
-        return product.stock <= 10;
+        return (product.stock || 0) <= 10;
       }).length;
 
-      // 3. Ventas de hoy
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const salesQuery = query(
-        collection(db, 'sales'),
-        where('createdAt', '>=', today)
-      );
-      const salesSnapshot = await getDocs(salesQuery);
-      const todaySales = salesSnapshot.docs.reduce((total, doc) => {
-        return total + (doc.data().total || 0);
-      }, 0);
+      // 2. Ventas de hoy (corregido)
+      try {
+        const salesQuery = query(
+          collection(db, 'sales'),
+          where('createdAt', '>=', hoyTimestamp)
+        );
+        const salesSnapshot = await getDocs(salesQuery);
+        const todaySales = salesSnapshot.docs.reduce((total, doc) => {
+          return total + (doc.data().total || 0);
+        }, 0);
+        setStats(prev => ({ ...prev, todaySales }));
+      } catch (error) {
+        console.warn('Error en consulta de ventas:', error);
+        // Fallback: cargar todas las ventas y filtrar en cliente
+        const allSales = await getDocs(collection(db, 'sales'));
+        const todaySales = allSales.docs.reduce((total, doc) => {
+          const sale = doc.data();
+          const saleDate = sale.createdAt?.toDate();
+          if (saleDate && saleDate >= hoy) {
+            return total + (sale.total || 0);
+          }
+          return total;
+        }, 0);
+        setStats(prev => ({ ...prev, todaySales }));
+      }
 
-      // 4. Movimientos de hoy
-      const movementsQuery = query(
-        collection(db, 'stock_movements'),
-        where('fecha', '>=', today)
-      );
-      const movementsSnapshot = await getDocs(movementsQuery);
-      const todayMovements = movementsSnapshot.size;
+      // 3. Movimientos de hoy (corregido)
+      try {
+        const movementsQuery = query(
+          collection(db, 'stock_movements'),
+          where('fecha', '>=', hoyTimestamp)
+        );
+        const movementsSnapshot = await getDocs(movementsQuery);
+        setStats(prev => ({ ...prev, todayMovements: movementsSnapshot.size }));
+      } catch (error) {
+        console.warn('Error en consulta de movimientos:', error);
+        // Fallback
+        const allMovements = await getDocs(collection(db, 'stock_movements'));
+        const todayMovements = allMovements.docs.filter(doc => {
+          const mov = doc.data();
+          const movDate = mov.fecha?.toDate();
+          return movDate && movDate >= hoy;
+        }).length;
+        setStats(prev => ({ ...prev, todayMovements }));
+      }
 
-      // 5. Pedidos pendientes (solo para admin)
-      const pendingOrdersQuery = query(
-        collection(db, 'orders'),
-        where('status', '==', 'pending')
-      );
-      const pendingOrdersSnapshot = await getDocs(pendingOrdersQuery);
-      const pendingOrders = pendingOrdersSnapshot.size;
+      // 4. Pedidos pendientes
+      try {
+        const pendingOrdersQuery = query(
+          collection(db, 'orders'),
+          where('status', '==', 'pending')
+        );
+        const pendingOrdersSnapshot = await getDocs(pendingOrdersQuery);
+        setStats(prev => ({ ...prev, pendingOrders: pendingOrdersSnapshot.size }));
+      } catch (error) {
+        console.warn('Error en consulta de pedidos pendientes:', error);
+        // Fallback
+        const allOrders = await getDocs(collection(db, 'orders'));
+        const pendingOrders = allOrders.docs.filter(doc => {
+          return doc.data().status === 'pending';
+        }).length;
+        setStats(prev => ({ ...prev, pendingOrders }));
+      }
 
-      // 6. Pedidos aprobados hoy
-      const approvedOrdersQuery = query(
-        collection(db, 'orders'),
-        where('status', '==', 'approved'),
-        where('fechaAprobacion', '>=', today)
-      );
-      const approvedOrdersSnapshot = await getDocs(approvedOrdersQuery);
-      const approvedOrders = approvedOrdersSnapshot.size;
+      // 5. Pedidos aprobados hoy
+      try {
+        const approvedOrdersQuery = query(
+          collection(db, 'orders'),
+          where('status', '==', 'approved'),
+          where('fechaAprobacion', '>=', hoyTimestamp)
+        );
+        const approvedOrdersSnapshot = await getDocs(approvedOrdersQuery);
+        setStats(prev => ({ ...prev, approvedOrders: approvedOrdersSnapshot.size }));
+      } catch (error) {
+        console.warn('Error en consulta de pedidos aprobados:', error);
+        // Fallback
+        const allOrders = await getDocs(collection(db, 'orders'));
+        const approvedOrders = allOrders.docs.filter(doc => {
+          const order = doc.data();
+          const aprobacionDate = order.fechaAprobacion?.toDate();
+          return order.status === 'approved' && aprobacionDate && aprobacionDate >= hoy;
+        }).length;
+        setStats(prev => ({ ...prev, approvedOrders }));
+      }
 
-      setStats({
+      // Actualizar estadísticas que no requieren consultas complejas
+      setStats(prev => ({
+        ...prev,
         totalProducts,
-        todaySales,
-        lowStockProducts,
-        todayMovements,
-        pendingOrders,
-        approvedOrders
-      });
+        lowStockProducts
+      }));
 
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
+      // Cargar datos básicos incluso si hay errores en consultas
+      try {
+        const productsSnapshot = await getDocs(collection(db, 'products'));
+        const totalProducts = productsSnapshot.size;
+        const lowStockProducts = productsSnapshot.docs.filter(doc => {
+          const product = doc.data();
+          return (product.stock || 0) <= 10;
+        }).length;
+
+        setStats({
+          totalProducts,
+          todaySales: 0,
+          lowStockProducts,
+          todayMovements: 0,
+          pendingOrders: 0,
+          approvedOrders: 0
+        });
+      } catch (fallbackError) {
+        console.error('Error en carga básica:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Resto del código se mantiene igual...
 
   const modules = [
     {
@@ -252,7 +323,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
             <div className="stat-icon">📦</div>
             <div className="stat-info">
               <span className="stat-value">
-                {loading ? '...' : stats.totalProducts}
+                {loading ? '...' : stats.totalProducts.toLocaleString()}
               </span>
               <span className="stat-label">Productos en stock</span>
             </div>
@@ -270,7 +341,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
             <div className="stat-icon">⚠️</div>
             <div className="stat-info">
               <span className="stat-value">
-                {loading ? '...' : stats.lowStockProducts}
+                {loading ? '...' : stats.lowStockProducts.toLocaleString()}
               </span>
               <span className="stat-label">Stock bajo</span>
             </div>
@@ -279,7 +350,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
             <div className="stat-icon">📊</div>
             <div className="stat-info">
               <span className="stat-value">
-                {loading ? '...' : stats.todayMovements}
+                {loading ? '...' : stats.todayMovements.toLocaleString()}
               </span>
               <span className="stat-label">Movimientos hoy</span>
             </div>
@@ -290,7 +361,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
                 <div className="stat-icon">⏳</div>
                 <div className="stat-info">
                   <span className="stat-value">
-                    {loading ? '...' : stats.pendingOrders}
+                    {loading ? '...' : stats.pendingOrders.toLocaleString()}
                   </span>
                   <span className="stat-label">Pedidos pendientes</span>
                 </div>
@@ -299,7 +370,7 @@ const Dashboard = ({ onNavigate, currentUser }) => {
                 <div className="stat-icon">✅</div>
                 <div className="stat-info">
                   <span className="stat-value">
-                    {loading ? '...' : stats.approvedOrders}
+                    {loading ? '...' : stats.approvedOrders.toLocaleString()}
                   </span>
                   <span className="stat-label">Pedidos aprobados hoy</span>
                 </div>

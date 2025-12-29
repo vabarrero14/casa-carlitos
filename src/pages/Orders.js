@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { 
-  collection, 
-  addDoc, 
+import {
+  collection,
+  addDoc,
   getDocs,
-  query, 
-  orderBy 
+  updateDoc,
+  doc,
+  query,
+  orderBy
 } from 'firebase/firestore';
 import Notification from '../components/Notification';
 import './Orders.css';
@@ -15,7 +17,7 @@ const Orders = ({ currentUser }) => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState('newOrder');
-  
+
   // Estados para nuevo pedido
   const [selectedClient, setSelectedClient] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
@@ -42,7 +44,7 @@ const Orders = ({ currentUser }) => {
 
   // Detectar cambios de precio
   useEffect(() => {
-    const priceChanged = orderItems.some(item => 
+    const priceChanged = orderItems.some(item =>
       item.precioSolicitado !== item.precioBase
     );
     setHasPriceChange(priceChanged);
@@ -135,14 +137,14 @@ const Orders = ({ currentUser }) => {
     }
 
     const existingItem = orderItems.find(item => item.productId === product.id);
-    
+
     if (existingItem) {
       // Verificar que no exceda el stock disponible
       if (existingItem.cantidad + 1 > product.stock) {
         showNotification('❌ No hay suficiente stock disponible', 'error');
         return;
       }
-      
+
       // Si ya existe, aumentar cantidad
       setOrderItems(prev => prev.map(item =>
         item.productId === product.id
@@ -168,13 +170,13 @@ const Orders = ({ currentUser }) => {
   // Actualizar cantidad de un producto
   const updateItemQuantity = (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    
+
     const product = products.find(p => p.id === productId);
     if (parseInt(newQuantity) > product.stock) {
       showNotification('❌ No hay suficiente stock disponible', 'error');
       return;
     }
-    
+
     setOrderItems(prev => prev.map(item =>
       item.productId === productId
         ? { ...item, cantidad: parseInt(newQuantity) }
@@ -185,7 +187,6 @@ const Orders = ({ currentUser }) => {
   // Actualizar precio solicitado de un producto
   const updateItemPrice = (productId, newPrice) => {
     if (newPrice < 0) return;
-    
     setOrderItems(prev => prev.map(item =>
       item.productId === productId
         ? { ...item, precioSolicitado: parseFloat(newPrice) }
@@ -219,7 +220,7 @@ const Orders = ({ currentUser }) => {
     setClientSearch('');
   };
 
-  // Crear venta desde pedido aprobado
+  // Crear venta desde pedido aprobado - ACTUALIZADA COMPLETA
   const createSaleFromOrder = async (orderData) => {
     try {
       const saleNumber = `VENTA-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -227,9 +228,20 @@ const Orders = ({ currentUser }) => {
       const saleData = {
         numero: saleNumber,
         orderNumber: orderData.orderNumber,
+        orderId: orderData.id || 'auto-generated',
+        orderData: {
+          orderNumber: orderData.orderNumber,
+          cliente: orderData.cliente,
+          vendedor: orderData.vendedor,
+          vendedorEmail: orderData.vendedorEmail,
+          hasPriceChange: orderData.hasPriceChange || false,
+          priceChangeReason: orderData.priceChangeReason || '',
+          autoApproved: true
+        },
         cliente: orderData.cliente,
         clienteId: orderData.clienteId,
         vendedor: orderData.vendedor,
+        vendedorEmail: orderData.vendedorEmail,
         fecha: new Date(),
         items: orderData.items.map(item => ({
           productId: item.productId,
@@ -237,20 +249,60 @@ const Orders = ({ currentUser }) => {
           productCode: item.productCode,
           cantidad: item.cantidad,
           precioUnitario: item.precioSolicitado,
-          precioBase: item.precioBase
+          precioBase: item.precioBase,
+          precioOriginal: item.precioBase,
+          precioAplicado: item.precioSolicitado,
+          diferencia: item.precioSolicitado - item.precioBase
         })),
         total: orderData.total,
-        metodoPago: 'pendiente', // Se define al concretar la venta
+        metodoPago: 'por_definir',
         createdAt: new Date(),
-        source: 'order' // Indica que viene de un pedido
+        source: 'order',
+        orderStatus: 'auto-approved',
+        orderApprovalDate: new Date(),
+        aprobadoPor: 'sistema',
+        hasPriceChange: orderData.hasPriceChange || false,
+        priceChangeReason: orderData.priceChangeReason || ''
       };
 
-      await addDoc(collection(db, 'sales'), saleData);
+      const saleDoc = await addDoc(collection(db, 'sales'), saleData);
       
-      // Actualizar stock (esto lo hará el admin al aprobar)
-      // Por ahora solo registramos la venta
-      
-      return true;
+      // Actualizar stock de productos
+      for (const item of orderData.items) {
+        const productRef = doc(db, 'products', item.productId);
+        const product = products.find(p => p.id === item.productId);
+        
+        if (product) {
+          const nuevoStock = product.stock - item.cantidad;
+          await updateDoc(productRef, {
+            stock: nuevoStock
+          });
+
+          // Registrar movimiento de stock
+          await addDoc(collection(db, 'stock_movements'), {
+            productId: item.productId,
+            productName: item.productName,
+            tipo: 'venta',
+            subtipo: 'desde_pedido_auto',
+            cantidad: item.cantidad,
+            stockAnterior: product.stock,
+            stockActual: nuevoStock,
+            precioUnitario: item.precioSolicitado,
+            totalMovimiento: item.cantidad * item.precioSolicitado,
+            referencia: saleNumber,
+            orderNumber: orderData.orderNumber,
+            orderId: orderData.id || 'auto-generated',
+            cliente: orderData.cliente,
+            vendedor: orderData.vendedor,
+            aprobadoPor: 'sistema',
+            fecha: new Date(),
+            precioBase: item.precioBase,
+            diferenciaPrecio: item.precioSolicitado - item.precioBase
+          });
+        }
+      }
+
+      return saleDoc.id;
     } catch (error) {
       console.error('Error creando venta desde pedido:', error);
       return false;
@@ -274,7 +326,7 @@ const Orders = ({ currentUser }) => {
 
     try {
       const total = calculateTotal();
-      
+
       // Calcular cambios de precio
       const priceChanges = orderItems.map(item => ({
         productName: item.productName,
@@ -312,12 +364,15 @@ const Orders = ({ currentUser }) => {
         customerNotes: ''
       };
 
-      await addDoc(collection(db, 'orders'), orderData);
+      const orderDoc = await addDoc(collection(db, 'orders'), orderData);
+      
+      // Agregar el ID al orderData para usarlo después
+      orderData.id = orderDoc.id;
 
       if (!hasPriceChange) {
         // Si no hay cambio de precio, crear venta automáticamente
         await createSaleFromOrder(orderData);
-        showNotification('✅ Pedido aprobado automáticamente. Ventas registrada', 'success');
+        showNotification('✅ Pedido aprobado automáticamente. Venta registrada', 'success');
       } else {
         showNotification('✅ Pedido creado exitosamente. Esperando aprobación del administrador', 'success');
       }
@@ -329,7 +384,7 @@ const Orders = ({ currentUser }) => {
       console.error('Error creando pedido:', error);
       showNotification('❌ Error al crear pedido', 'error');
     }
-    
+
     setLoading(false);
   };
 
@@ -385,6 +440,7 @@ const Orders = ({ currentUser }) => {
                     <label>Número de Pedido:</label>
                     <span className="purchase-number">{orderNumber}</span>
                   </div>
+                  
                   <div className="info-group">
                     <label>Fecha:</label>
                     <input
@@ -394,6 +450,7 @@ const Orders = ({ currentUser }) => {
                       className="date-input"
                     />
                   </div>
+                  
                   <div className="info-group">
                     <label>Entrega Estimada:</label>
                     <input
@@ -403,6 +460,7 @@ const Orders = ({ currentUser }) => {
                       className="date-input"
                     />
                   </div>
+                  
                   <div className="info-group">
                     <label>Cliente:</label>
                     <div className="supplier-selection">
@@ -453,6 +511,7 @@ const Orders = ({ currentUser }) => {
                           <span className="product-name">{product.name}</span>
                           {product.code && <span className="product-code">({product.code})</span>}
                         </div>
+                        
                         <div className="product-details">
                           <span className={`product-stock ${product.stock <= 0 ? 'stock-zero' : product.stock <= 5 ? 'stock-low' : ''}`}>
                             Stock: {product.stock}
@@ -463,6 +522,7 @@ const Orders = ({ currentUser }) => {
                             Precio: {formatCurrency(product.salePrice || product.price)}
                           </span>
                         </div>
+                        
                         <div className="product-action">
                           {product.stock > 0 ? (
                             <button className="btn-add">➕ Agregar</button>
@@ -486,13 +546,13 @@ const Orders = ({ currentUser }) => {
                         ⚠️ <strong>Este pedido tiene cambios de precio</strong> - Requiere aprobación del administrador
                       </div>
                     )}
-                    
+
                     <div className="items-list">
                       {orderItems.map((item, index) => {
                         const { diferencia, porcentaje } = calculatePriceDifference(item);
                         const tieneDescuento = diferencia < 0;
                         const tieneAumento = diferencia > 0;
-                        
+
                         return (
                           <div key={item.productId} className="purchase-item">
                             <div className="item-info">
@@ -612,6 +672,7 @@ const Orders = ({ currentUser }) => {
                   ❌
                 </button>
               </div>
+              
               <div className="search-box">
                 <input
                   type="text"
@@ -621,6 +682,7 @@ const Orders = ({ currentUser }) => {
                   className="search-input"
                 />
               </div>
+              
               <div className="suppliers-list">
                 {filteredClients.length > 0 ? (
                   filteredClients.map(client => (

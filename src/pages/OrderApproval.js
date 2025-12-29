@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { 
-  collection, 
-  getDocs, 
-  updateDoc, 
-  doc, 
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
   addDoc,
-  query, 
+  query,
   orderBy,
-  where 
+  where
 } from 'firebase/firestore';
 import Notification from '../components/Notification';
 import './OrderApproval.css';
@@ -36,46 +36,39 @@ const OrderApproval = ({ currentUser }) => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      // Pedidos pendientes
-      const pendingQuery = query(
-        collection(db, 'orders'),
-        where('status', '==', 'pending'),
-        orderBy('fechaCreacion', 'desc')
-      );
-      const pendingSnapshot = await getDocs(pendingQuery);
-      const pendingList = pendingSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Cargar TODOS los pedidos primero (temporal hasta índices)
+      const allOrdersQuery = query(collection(db, 'orders'));
+      const allOrdersSnapshot = await getDocs(allOrdersQuery);
+      const allOrders = [];
+      allOrdersSnapshot.forEach((doc) => {
+        allOrders.push({ id: doc.id, ...doc.data() });
+      });
 
-      // Pedidos aprobados
-      const approvedQuery = query(
-        collection(db, 'orders'),
-        where('status', '==', 'approved'),
-        orderBy('fechaAprobacion', 'desc')
-      );
-      const approvedSnapshot = await getDocs(approvedQuery);
-      const approvedList = approvedSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Filtrar y ordenar manualmente en el cliente
+      const pendingList = allOrders
+        .filter(order => order.status === 'pending')
+        .sort((a, b) => {
+          if (!a.fechaCreacion || !b.fechaCreacion) return 0;
+          return b.fechaCreacion.toDate() - a.fechaCreacion.toDate();
+        });
 
-      // Pedidos rechazados
-      const rejectedQuery = query(
-        collection(db, 'orders'),
-        where('status', '==', 'rejected'),
-        orderBy('fechaAprobacion', 'desc')
-      );
-      const rejectedSnapshot = await getDocs(rejectedQuery);
-      const rejectedList = rejectedSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const approvedList = allOrders
+        .filter(order => order.status === 'approved')
+        .sort((a, b) => {
+          if (!a.fechaAprobacion || !b.fechaAprobacion) return 0;
+          return b.fechaAprobacion.toDate() - a.fechaAprobacion.toDate();
+        });
+
+      const rejectedList = allOrders
+        .filter(order => order.status === 'rejected')
+        .sort((a, b) => {
+          if (!a.fechaAprobacion || !b.fechaAprobacion) return 0;
+          return b.fechaAprobacion.toDate() - a.fechaAprobacion.toDate();
+        });
 
       setPendingOrders(pendingList);
       setApprovedOrders(approvedList);
       setRejectedOrders(rejectedList);
-
     } catch (error) {
       console.error('Error cargando pedidos:', error);
       showNotification('Error al cargar pedidos', 'error');
@@ -90,7 +83,7 @@ const OrderApproval = ({ currentUser }) => {
     setAdminComments('');
   };
 
-  // Crear venta desde pedido aprobado
+  // Crear venta desde pedido aprobado - ACTUALIZADO CON orderId
   const createSaleFromOrder = async (order) => {
     try {
       const saleNumber = `VENTA-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -98,7 +91,16 @@ const OrderApproval = ({ currentUser }) => {
       const saleData = {
         numero: saleNumber,
         orderNumber: order.orderNumber,
-        orderId: order.id,
+        orderId: order.id, // <-- NUEVO: Identificador del pedido
+        orderData: { // <-- NUEVO: Datos importantes del pedido
+          orderNumber: order.orderNumber,
+          cliente: order.cliente,
+          vendedor: order.vendedor,
+          vendedorEmail: order.vendedorEmail,
+          priceChangeReason: order.priceChangeReason,
+          hasPriceChange: order.hasPriceChange || false,
+          adminComments: order.adminComments || ''
+        },
         cliente: order.cliente,
         clienteId: order.clienteId,
         vendedor: order.vendedor,
@@ -120,7 +122,12 @@ const OrderApproval = ({ currentUser }) => {
         createdAt: new Date(),
         source: 'order',
         aprobadoPor: currentUser,
-        adminComments: adminComments
+        adminComments: adminComments,
+        // Nuevos campos para trazabilidad
+        orderStatus: 'approved',
+        orderApprovalDate: new Date(),
+        hasPriceChange: order.hasPriceChange || false,
+        priceChangeReason: order.priceChangeReason || ''
       };
 
       const saleDoc = await addDoc(collection(db, 'sales'), saleData);
@@ -132,11 +139,10 @@ const OrderApproval = ({ currentUser }) => {
           collection(db, 'products'),
           where('__name__', '==', item.productId)
         ));
-        
+
         if (!productSnapshot.empty) {
           const product = productSnapshot.docs[0].data();
           const nuevoStock = product.stock - item.cantidad;
-          
           await updateDoc(productRef, {
             stock: nuevoStock
           });
@@ -154,6 +160,7 @@ const OrderApproval = ({ currentUser }) => {
             totalMovimiento: item.cantidad * item.precioSolicitado,
             referencia: saleNumber,
             orderNumber: order.orderNumber,
+            orderId: order.id, // <-- NUEVO
             cliente: order.cliente,
             vendedor: order.vendedor,
             aprobadoPor: currentUser,
@@ -184,7 +191,7 @@ const OrderApproval = ({ currentUser }) => {
 
     try {
       const orderRef = doc(db, 'orders', order.id);
-      
+
       // Actualizar pedido
       await updateDoc(orderRef, {
         status: 'approved',
@@ -197,7 +204,7 @@ const OrderApproval = ({ currentUser }) => {
       await createSaleFromOrder(order);
 
       showNotification('✅ Pedido aprobado y venta creada exitosamente', 'success');
-      
+
       // Recargar pedidos
       await loadOrders();
       setShowOrderDetails(false);
@@ -208,6 +215,7 @@ const OrderApproval = ({ currentUser }) => {
       console.error('Error aprobando pedido:', error);
       showNotification('❌ Error al aprobar pedido', 'error');
     }
+
     setLoading(false);
   };
 
@@ -227,7 +235,6 @@ const OrderApproval = ({ currentUser }) => {
 
     try {
       const orderRef = doc(db, 'orders', order.id);
-      
       await updateDoc(orderRef, {
         status: 'rejected',
         fechaAprobacion: new Date(),
@@ -248,6 +255,7 @@ const OrderApproval = ({ currentUser }) => {
       console.error('Error rechazando pedido:', error);
       showNotification('❌ Error al rechazar pedido', 'error');
     }
+
     setLoading(false);
   };
 
@@ -256,7 +264,7 @@ const OrderApproval = ({ currentUser }) => {
     if (!timestamp) return '--';
     const date = timestamp.toDate();
     return date.toLocaleDateString('es-ES') + ' ' +
-           date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   };
 
   // Formatear moneda
@@ -276,7 +284,7 @@ const OrderApproval = ({ currentUser }) => {
       totalBase += item.cantidad * item.precioBase;
       totalSolicitado += item.cantidad * item.precioSolicitado;
     });
-    
+
     const diferencia = totalSolicitado - totalBase;
     const porcentaje = ((diferencia / totalBase) * 100).toFixed(2);
     
@@ -361,7 +369,7 @@ const OrderApproval = ({ currentUser }) => {
                                   <span className="change-badge warning">⚠️ CON CAMBIOS</span>
                                   <span className="change-details">
                                     Base: {formatCurrency(changes.totalBase)} → 
-                                    Solicitado: {formatCurrency(changes.totalSolicitado)} 
+                                    Solicitado: {formatCurrency(changes.totalSolicitado)}
                                     ({changes.diferencia > 0 ? '+' : ''}{formatCurrency(changes.diferencia)})
                                   </span>
                                 </div>
